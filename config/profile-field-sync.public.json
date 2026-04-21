@@ -35,6 +35,11 @@
   "ui": {
     "loadingTitle": "Submitting",
     "loadingBody": "Please wait while we process your submission..."
+  },
+  "messages": {
+    "submittingType": "FORM_SUBMITTING",
+    "successType": "FORM_SUCCESS",
+    "successFlagKey": "success"
   }
 }
 

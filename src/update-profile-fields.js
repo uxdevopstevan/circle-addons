@@ -221,14 +221,15 @@ async function getFieldValue() {
     }
     
     const fieldKey = cfg && cfg.profile && cfg.profile.fieldKey;
-    const basisId = fieldKey ? (profileResponse.customFields[fieldKey] || null) : null;
+    const value = fieldKey ? (profileResponse.customFields[fieldKey] || null) : null;
     
-    if (basisId) {
-        debugSuccess(`Field found: ${basisId}`);
-        console.log('Profile Field Sync: Field value:', basisId);
+    if (value) {
+        const label = (cfg && cfg.profile && cfg.profile.label) ? cfg.profile.label : fieldKey || 'field';
+        debugSuccess(`${label} found: ${value}`);
+        console.log('Profile Field Sync: Field value:', value);
     }
     
-    return basisId;
+    return value;
 }
 
 async function getProfileCustomFields() {
@@ -240,7 +241,7 @@ async function getProfileCustomFields() {
 /**
  * Update the user's configured field in their profile
  * Uses the shared profile API module
- * @param {string} newBasisId - The new field value to save
+ * @param {string} newValue - The new field value to save
  * @returns {Promise<boolean>} True if successful
  */
 async function updateProfileField(newValue) {
@@ -321,16 +322,20 @@ function setupMessageListener() {
         debugLog('Message listener already setup, skipping');
         return;
     }
+
+    const submittingType = (cfg && cfg.messages && cfg.messages.submittingType) ? cfg.messages.submittingType : 'FORM_SUBMITTING';
+    const successType = (cfg && cfg.messages && cfg.messages.successType) ? cfg.messages.successType : 'FORM_SUCCESS';
+    const successFlagKey = (cfg && cfg.messages && cfg.messages.successFlagKey) ? cfg.messages.successFlagKey : 'success';
     
     window.addEventListener('message', (event) => {
         if (event.data && event.data.type) {
             debugLog(`Received message: ${event.data.type}`);
             console.log('Profile Field Sync: Received message:', event.data);
             
-            if (event.data.type === 'BASIS_FORM_SUBMITTING') {
+            if (event.data.type === submittingType) {
                 // Form is being submitted, show loading state
                 showLoadingState();
-            } else if (event.data.type === 'BASIS_FORM_SUCCESS' && event.data.success) {
+            } else if (event.data.type === successType && (!successFlagKey || event.data[successFlagKey])) {
                 // Form submitted successfully
                 showSuccessState();
             }
@@ -520,7 +525,7 @@ function showCompleteDataForm(existingValue = '', existingFirstName = '', existi
                 <p class="text-sm text-gray-600">Please provide the following information to continue.</p>
             </div>
             
-            <form id="basisCompleteForm" class="space-y-4">
+            <form id="completeForm" class="space-y-4">
                 <div>
                     <label for="firstNameInput" class="block text-sm font-medium text-gray-700 mb-1">
                         First Name <span class="text-red-500">*</span>
@@ -586,7 +591,7 @@ function showCompleteDataForm(existingValue = '', existingFirstName = '', existi
     wrapper.innerHTML = formHtml;
     
     // Add form submit handler
-    const form = document.getElementById('basisCompleteForm');
+    const form = document.getElementById('completeForm');
     if (form) {
         // Set up message listener for when form loads iframe
         setupMessageListener();
@@ -612,12 +617,12 @@ function showCompleteDataForm(existingValue = '', existingFirstName = '', existi
 }
 
 /**
- * Wait for the basisFormWrapper div to be available (React needs time to render)
+ * Wait for the profileFieldSyncWrapper div to be available (React needs time to render)
  * @returns {Promise<HTMLElement>} The wrapper element
  */
 function waitForWrapper() {
     return new Promise((resolve, reject) => {
-        const wrapperId = (cfg && cfg.dom && cfg.dom.wrapperId) ? cfg.dom.wrapperId : 'basisFormWrapper';
+        const wrapperId = (cfg && cfg.dom && cfg.dom.wrapperId) ? cfg.dom.wrapperId : 'profileFieldSyncWrapper';
         debugLog(`Waiting for ${wrapperId} to be ready...`);
         console.log('Profile Field Sync: Waiting for wrapper...', wrapperId);
         
