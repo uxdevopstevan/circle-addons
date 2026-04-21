@@ -25,33 +25,32 @@ const version = packageJson.version || '0.0.0';
 dotenv.config({ path: path.join(__dirname, '.env') });
 dotenv.config({ path: path.join(__dirname, '.env.local'), override: true });
 
-const WEB_ORIGIN =
-  process.env.WEB_ORIGIN ||
-  'https://web.staypost.app';
+function loadBuildConfig() {
+  const privatePath = path.join(__dirname, 'config', 'build.private.json');
+  const publicPath = path.join(__dirname, 'config', 'build.public.json');
+  const chosen = fs.existsSync(privatePath) ? privatePath : publicPath;
+  try {
+    return JSON.parse(fs.readFileSync(chosen, 'utf8'));
+  } catch (e) {
+    console.error('❌ Failed to read build config JSON:', chosen);
+    throw e;
+  }
+}
 
-const CIRCLE_BASIS_POINTS_BASE_URL =
-  process.env.CIRCLE_BASIS_POINTS_BASE_URL;
-
-const CIRCLE_ADDONS_SCRIPTS_BASE_URL =
-  process.env.CIRCLE_ADDONS_SCRIPTS_BASE_URL;
-
-const CIRCLE_ADDONS_IMAGES_BASE_URL =
-  process.env.CIRCLE_ADDONS_IMAGES_BASE_URL;
-
-const CIRCLE_BLUECONIC_DOMAIN_KEY =
-  process.env.CIRCLE_BLUECONIC_DOMAIN_KEY;
-
-function requireEnv(name, value) {
-  if (typeof value === 'string' && value.length > 0) return value;
-  console.error(`❌ Missing required env var: ${name}`);
-  console.error(`   Set it in .env or .env.local (both are gitignored).`);
+function pickString(name, envValue, cfgValue) {
+  const v = (typeof envValue === 'string' && envValue.length > 0) ? envValue : cfgValue;
+  if (typeof v === 'string' && v.length > 0) return v;
+  console.error(`❌ Missing required build setting: ${name}`);
+  console.error('   Set it in config/build.public.json (or build.private.json), or override via .env/.env.local');
   process.exit(1);
 }
 
-requireEnv('CIRCLE_BASIS_POINTS_BASE_URL', CIRCLE_BASIS_POINTS_BASE_URL);
-requireEnv('CIRCLE_ADDONS_SCRIPTS_BASE_URL', CIRCLE_ADDONS_SCRIPTS_BASE_URL);
-requireEnv('CIRCLE_ADDONS_IMAGES_BASE_URL', CIRCLE_ADDONS_IMAGES_BASE_URL);
-requireEnv('CIRCLE_BLUECONIC_DOMAIN_KEY', CIRCLE_BLUECONIC_DOMAIN_KEY);
+const buildCfg = loadBuildConfig();
+
+const WEB_ORIGIN = pickString('webOrigin', process.env.WEB_ORIGIN, buildCfg.webOrigin);
+const CIRCLE_ADDONS_SCRIPTS_BASE_URL = pickString('addonsScriptsBaseUrl', process.env.CIRCLE_ADDONS_SCRIPTS_BASE_URL, buildCfg.addonsScriptsBaseUrl);
+const CIRCLE_ADDONS_IMAGES_BASE_URL = pickString('addonsImagesBaseUrl', process.env.CIRCLE_ADDONS_IMAGES_BASE_URL, buildCfg.addonsImagesBaseUrl);
+const CIRCLE_BLUECONIC_DOMAIN_KEY = pickString('blueconicDomainKey', process.env.CIRCLE_BLUECONIC_DOMAIN_KEY, buildCfg.blueconicDomainKey);
 
 const checkoutPromosConfigPlugin = {
   name: 'checkout-promos-config',
@@ -177,8 +176,7 @@ const commonOptions = {
   globalName: 'CircleAddons',
   plugins: [checkoutPromosConfigPlugin, signupBrandingConfigPlugin, profileFieldSyncConfigPlugin],
   define: {
-    __WEB_ORIGIN__: JSON.stringify(WEB_ORIGIN)
-    ,__CIRCLE_BASIS_POINTS_BASE_URL__: JSON.stringify(CIRCLE_BASIS_POINTS_BASE_URL)
+    __STAYPOST_WEB_ORIGIN__: JSON.stringify(WEB_ORIGIN)
     ,__CIRCLE_BLUECONIC_DOMAIN_KEY__: JSON.stringify(CIRCLE_BLUECONIC_DOMAIN_KEY)
     ,__CIRCLE_ADDONS_SCRIPTS_BASE_URL__: JSON.stringify(CIRCLE_ADDONS_SCRIPTS_BASE_URL)
     ,__CIRCLE_ADDONS_IMAGES_BASE_URL__: JSON.stringify(CIRCLE_ADDONS_IMAGES_BASE_URL)
@@ -218,7 +216,7 @@ async function build() {
         minify: true,
         sourcemap: false,
         logLevel: 'info',
-        plugins: [htmlMinifierPlugin]
+        plugins: [...(commonOptions.plugins || []), htmlMinifierPlugin]
       });
       
       const prodStats = fs.statSync('dist/circle-addons.min.js');

@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "webOrigin": "https://example.circle.so",
+  "addonsScriptsBaseUrl": "https://example.com/assets/scripts/circle/",
+  "addonsImagesBaseUrl": "https://example.com/assets/images/circle/",
+  "blueconicDomainKey": "your_domain_key_"
+}
+

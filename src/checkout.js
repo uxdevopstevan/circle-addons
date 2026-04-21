@@ -7,22 +7,22 @@
  * Note: This module is called by page-scripts.js when on a checkout page.
  */
 
+import { debugLog, debugWarn } from './debug-logger.js';
+
 /**
  * Initialize checkout page functionality
  * Assumes we're already on a checkout page (routing handled by page-scripts.js)
  */
 export function initCheckout() {
-    console.log('Checkout Module: Initializing...');
+    debugLog('Checkout Module: Initializing...');
 
     const urlParams = new URLSearchParams(window.location.search);
     const verbose = urlParams.get('checkout_debug') === '1' || urlParams.get('checkout_debug') === 'true';
     const vlog = (...args) => {
         if (!verbose) return;
-        try {
-            console.log('[Checkout Debug]', ...args);
-        } catch (e) {
-            // ignore
-        }
+        debugLog(`[Checkout Debug] ${args.map(a => {
+            try { return typeof a === 'string' ? a : JSON.stringify(a); } catch (e) { return String(a); }
+        }).join(' ')}`);
     };
 
     // Optional query-string behavior:
@@ -110,15 +110,15 @@ export function initCheckout() {
     
     // Validate that the price parameter is numeric
     if (priceId && !/^\d+$/.test(priceId)) {
-        console.warn('Checkout Module: Price parameter is not numeric:', priceId);
+        debugWarn(`Checkout Module: Price parameter is not numeric: ${String(priceId)}`);
         // Treat as not provided
     }
     const validPriceId = priceId && /^\d+$/.test(priceId) ? priceId : null;
 
     if (validPriceId) {
-        console.log('Checkout Module: Looking for input with ID:', validPriceId);
+        debugLog(`Checkout Module: Looking for input with ID: ${validPriceId}`);
     } else {
-        console.log('Checkout Module: No valid price parameter found in URL');
+        debugLog('Checkout Module: No valid price parameter found in URL');
     }
     
     // Function to find and click the price input
@@ -181,7 +181,7 @@ export function initCheckout() {
         };
 
         if (optionLabel) {
-            console.log('Checkout Module: Found option label, clicking to select:', validPriceId);
+            debugLog(`Checkout Module: Found option label, clicking to select: ${validPriceId}`);
             try { optionLabel.scrollIntoView({ block: 'center', inline: 'nearest' }); } catch (e) {}
             dispatchMouseSequence(optionLabel);
             vlog('selectPriceInput:optionLabel:click');
@@ -195,7 +195,7 @@ export function initCheckout() {
                 groupSelected: isGroupSelected()
             });
             if (inputAfterLabelClick && (inputAfterLabelClick.checked || isVisuallySelected() || isGroupSelected())) {
-                console.log('Checkout Module: Price input successfully selected via label click');
+                debugLog('Checkout Module: Price input successfully selected via label click');
                 return true;
             }
 
@@ -203,7 +203,7 @@ export function initCheckout() {
             if (inputAfterLabelClick) {
                 forceSelectInput(inputAfterLabelClick);
                 if (inputAfterLabelClick.checked || isVisuallySelected() || isGroupSelected()) {
-                    console.log('Checkout Module: Price input successfully selected via forced event dispatch');
+                    debugLog('Checkout Module: Price input successfully selected via forced event dispatch');
                     return true;
                 }
             }
@@ -213,17 +213,17 @@ export function initCheckout() {
         vlog('selectPriceInput:directInputLookup', { found: !!inputElement });
         
         if (!inputElement) {
-            console.warn('Checkout Module: Input element not found with ID:', validPriceId);
+            debugWarn(`Checkout Module: Input element not found with ID: ${validPriceId}`);
             return false;
         }
         
         // Verify it's a radio input (for safety)
         if (inputElement.type !== 'radio') {
-            console.warn('Checkout Module: Element found but it is not a radio input:', inputElement.type);
+            debugWarn(`Checkout Module: Element found but it is not a radio input: ${String(inputElement.type)}`);
             return false;
         }
         
-        console.log('Checkout Module: Found radio input, clicking to select:', validPriceId);
+        debugLog(`Checkout Module: Found radio input, clicking to select: ${validPriceId}`);
         vlog('selectPriceInput:inputElement:click', { id: inputElement.id });
         inputElement.click();
         forceSelectInput(inputElement);
@@ -235,10 +235,10 @@ export function initCheckout() {
             groupSelected: isGroupSelected()
         });
         if (inputElement.checked || isVisuallySelected() || isGroupSelected()) {
-            console.log('Checkout Module: Price input successfully selected');
+            debugLog('Checkout Module: Price input successfully selected');
             return true;
         } else {
-            console.warn('Checkout Module: Click executed but input not checked');
+            debugWarn('Checkout Module: Click executed but input not checked');
             return false;
         }
     };
@@ -252,7 +252,7 @@ export function initCheckout() {
     }
 
     // If not done immediately, wait for DOM to be ready (React might still be rendering)
-    console.log('Checkout Module: Watching for DOM changes...');
+    debugLog('Checkout Module: Watching for DOM changes...');
     
     // Set up a MutationObserver to watch for the input to appear + apply hides
     const observer = new MutationObserver((mutations, obs) => {
@@ -261,7 +261,7 @@ export function initCheckout() {
 
         if (priceDoneInner && hideDoneInner) {
             if (validPriceId) {
-                console.log('Checkout Module: Successfully selected price input after DOM update');
+                debugLog('Checkout Module: Successfully selected price input after DOM update');
             }
             obs.disconnect();
         }
@@ -276,7 +276,7 @@ export function initCheckout() {
     // Stop observing after 10 seconds to prevent indefinite watching
     setTimeout(() => {
         observer.disconnect();
-        console.log('Checkout Module: Stopped observing after timeout');
+        debugLog('Checkout Module: Stopped observing after timeout');
     }, 10000);
 }
 

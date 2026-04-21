@@ -12,15 +12,7 @@
 import { getCurrentUserPublicUid, getUserData, getProfileData, updateCustomField } from './profile-api.js';
 import cfg from '@circle-config/profile-field-sync';
 
-// Debug logger - comment out for production, uncomment for debugging
-// import { initDebugLogger, debugLog, debugSuccess, debugError, debugWarn } from './debug-logger.js';
-
-// No-op debug functions for production
-const initDebugLogger = () => {};
-const debugLog = () => {};
-const debugSuccess = () => {};
-const debugError = () => {};
-const debugWarn = () => {};
+import { initDebugLogger, debugError, debugLog, debugSuccess, debugWarn } from './debug-logger.js';
 
 /**
  * Extract UTM parameters from current URL
@@ -62,7 +54,7 @@ function getWrapper() {
     const wrapper = document.getElementById(wrapperId);
     if (!wrapper) {
         debugError(`${wrapperId} div not found`);
-        console.error('Profile Field Sync: wrapper div not found:', wrapperId);
+        debugError(`Profile Field Sync: wrapper div not found: ${wrapperId}`);
     }
     return wrapper;
 }
@@ -123,7 +115,7 @@ function createHiddenIframe(userData, fieldValue, customFields) {
     // Build URL with parameters
     const baseUrl = cfg && cfg.submit && cfg.submit.baseUrl;
     if (!baseUrl) {
-        console.error('Profile Field Sync: Missing submit.baseUrl in config');
+        debugError('Profile Field Sync: Missing submit.baseUrl in config');
         return;
     }
     const params = new URLSearchParams();
@@ -184,7 +176,7 @@ function createHiddenIframe(userData, fieldValue, customFields) {
     const iframeUrl = `${baseUrl}?${params.toString()}`;
     
     debugSuccess(`Loading iframe - ${firstName} ${lastName}`);
-    console.log('Profile Field Sync: Loading iframe with URL:', iframeUrl);
+    debugLog(`Profile Field Sync: Loading iframe with URL: ${iframeUrl}`);
     
     // Show loading state
     showLoadingState();
@@ -216,7 +208,7 @@ async function getFieldValue() {
     
     if (!profileResponse || !profileResponse.customFields) {
         debugError('Cannot get field value: Profile data not available');
-        console.error('Profile Field Sync: Profile data not available');
+        debugError('Profile Field Sync: Profile data not available');
         return null;
     }
     
@@ -226,7 +218,7 @@ async function getFieldValue() {
     if (value) {
         const label = (cfg && cfg.profile && cfg.profile.label) ? cfg.profile.label : fieldKey || 'field';
         debugSuccess(`${label} found: ${value}`);
-        console.log('Profile Field Sync: Field value:', value);
+        debugLog(`Profile Field Sync: Field value: ${String(value)}`);
     }
     
     return value;
@@ -248,17 +240,17 @@ async function updateProfileField(newValue) {
     const fieldKey = cfg && cfg.profile && cfg.profile.fieldKey;
     if (!fieldKey) return false;
     debugLog(`Updating profile field ${fieldKey}: ${newValue}`);
-    console.log('Profile Field Sync: Updating profile field:', fieldKey);
+    debugLog(`Profile Field Sync: Updating profile field: ${fieldKey}`);
     
     // Use the shared updateCustomField function from profile-api
     const success = await updateCustomField(fieldKey, newValue);
     
     if (success) {
         debugSuccess('Profile updated successfully!');
-        console.log('Profile Field Sync: Profile updated successfully');
+        debugLog('Profile Field Sync: Profile updated successfully');
     } else {
         debugError('Profile update failed');
-        console.error('Profile Field Sync: Profile update failed');
+        debugError('Profile Field Sync: Profile update failed');
     }
     
     return success;
@@ -330,7 +322,7 @@ function setupMessageListener() {
     window.addEventListener('message', (event) => {
         if (event.data && event.data.type) {
             debugLog(`Received message: ${event.data.type}`);
-            console.log('Profile Field Sync: Received message:', event.data);
+            debugLog(`Profile Field Sync: Received message: ${JSON.stringify(event.data)}`);
             
             if (event.data.type === submittingType) {
                 // Form is being submitted, show loading state
@@ -344,7 +336,7 @@ function setupMessageListener() {
     
     messageListenerSetup = true;
     debugLog('Message listener setup complete');
-    console.log('Profile Field Sync: Listening for iframe messages');
+    debugLog('Profile Field Sync: Listening for iframe messages');
 }
 
 /**
@@ -356,7 +348,7 @@ function setupMessageListener() {
  */
 async function saveFieldAndSubmit(fieldValue, firstName, lastName, submitBtn = null) {
     debugSuccess(`Submitting - First: ${firstName}, Last: ${lastName}`);
-    console.log('Profile Field Sync: Processing submission');
+    debugLog('Profile Field Sync: Processing submission');
     
     // Show button loading state
     if (submitBtn) {
@@ -398,7 +390,7 @@ function showNotLoggedInMessage() {
     if (!wrapper) return;
     
     debugWarn('User not logged in');
-    console.log('Profile Field Sync: Showing not logged in message');
+    debugLog('Profile Field Sync: Showing not logged in message');
     
     wrapper.innerHTML = `
         <div class="bg-white rounded-lg shadow-md p-8 text-center max-w-md mx-auto">
@@ -433,7 +425,7 @@ function showFieldOnlyForm(existingValue = '') {
     
     const fieldLabel = (cfg && cfg.profile && cfg.profile.label) ? cfg.profile.label : 'ID';
     debugWarn(`Showing ${fieldLabel} form (user has name)`);
-    console.log('Profile Field Sync: Showing field-only form');
+    debugLog('Profile Field Sync: Showing field-only form');
     
     const formHtml = `
         <div class="bg-white rounded-lg p-6 max-w-md mx-auto">
@@ -515,7 +507,7 @@ function showCompleteDataForm(existingValue = '', existingFirstName = '', existi
     
     const fieldLabel = (cfg && cfg.profile && cfg.profile.label) ? cfg.profile.label : 'ID';
     debugWarn(`Showing complete data form (missing first/last name and/or ${fieldLabel})`);
-    console.log('Profile Field Sync: Showing complete data form');
+    debugLog('Profile Field Sync: Showing complete data form');
     
     // Create form HTML with Tailwind classes
     const formHtml = `
@@ -624,13 +616,13 @@ function waitForWrapper() {
     return new Promise((resolve, reject) => {
         const wrapperId = (cfg && cfg.dom && cfg.dom.wrapperId) ? cfg.dom.wrapperId : 'profileFieldSyncWrapper';
         debugLog(`Waiting for ${wrapperId} to be ready...`);
-        console.log('Profile Field Sync: Waiting for wrapper...', wrapperId);
+        debugLog(`Profile Field Sync: Waiting for wrapper... ${wrapperId}`);
         
         // First, check if it's already there
         const existingWrapper = document.getElementById(wrapperId);
         if (existingWrapper) {
             debugSuccess(`${wrapperId} found immediately`);
-            console.log('Profile Field Sync: wrapper found immediately');
+            debugLog('Profile Field Sync: wrapper found immediately');
             resolve(existingWrapper);
             return;
         }
@@ -646,12 +638,12 @@ function waitForWrapper() {
             if (wrapper) {
                 clearInterval(checkInterval);
                 debugSuccess(`${wrapperId} found after ${attempts * 100}ms`);
-                console.log(`Profile Field Sync: wrapper found after ${attempts * 100}ms`);
+                debugLog(`Profile Field Sync: wrapper found after ${attempts * 100}ms`);
                 resolve(wrapper);
             } else if (attempts >= maxAttempts) {
                 clearInterval(checkInterval);
                 debugError(`${wrapperId} not found after timeout`);
-                console.error('Profile Field Sync: wrapper not found after timeout');
+                debugError('Profile Field Sync: wrapper not found after timeout');
                 reject(new Error(`${wrapperId} div not found`));
             }
         }, 300); // Check every 100ms
@@ -669,7 +661,7 @@ export async function initUpdateProfileFields() {
     if (!shouldRun()) return;
 
     debugLog('Profile Field Sync: Initializing...');
-    console.log('Profile Field Sync: Initializing...');
+    debugLog('Profile Field Sync: Initializing...');
     
     try {
         // Wait for React to render the wrapper div
@@ -679,7 +671,7 @@ export async function initUpdateProfileFields() {
         const publicUid = getCurrentUserPublicUid();
         if (!publicUid) {
             debugWarn('User not logged in - showing login prompt');
-            console.log('Profile Field Sync: User not logged in');
+            debugLog('Profile Field Sync: User not logged in');
             showNotLoggedInMessage();
             return;
         }
@@ -700,14 +692,14 @@ export async function initUpdateProfileFields() {
         if (hasAllData) {
             // All data available - auto-submit
             debugSuccess(`All data found - auto-submitting`);
-            console.log('Profile Field Sync: All required data found, auto-submitting');
+            debugLog('Profile Field Sync: All required data found, auto-submitting');
             await loadIframe(fieldValue);
             
         } else if (hasNames && !hasFieldValue) {
             // Has first/last name, only missing field value - show simple form
             const fieldLabel = (cfg && cfg.profile && cfg.profile.label) ? cfg.profile.label : 'ID';
             debugWarn(`Missing: ${fieldLabel} only`);
-            console.log('Profile Field Sync: Missing field only, showing simple form');
+            debugLog('Profile Field Sync: Missing field only, showing simple form');
             showFieldOnlyForm(fieldValue);
             
         } else {
@@ -721,16 +713,16 @@ export async function initUpdateProfileFields() {
             }
             
             debugWarn(`Missing: ${missingData.join(', ')}`);
-            console.log('Profile Field Sync: Missing data, showing complete form');
+            debugLog('Profile Field Sync: Missing data, showing complete form');
             showCompleteDataForm(fieldValue, userData.firstName, userData.lastName);
         }
         
         debugLog('Initialization complete');
-        console.log('Profile Field Sync: Initialization complete');
+        debugLog('Profile Field Sync: Initialization complete');
         
     } catch (error) {
         debugError(`Initialization failed: ${error.message}`);
-        console.error('Profile Field Sync: Initialization failed:', error);
+        debugError(`Profile Field Sync: Initialization failed: ${String(error?.message || error)}`);
     }
 }
 

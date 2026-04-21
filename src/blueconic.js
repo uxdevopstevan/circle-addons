@@ -6,17 +6,18 @@
  */
 
 import { getCurrentUserPublicUid, getUserData, getProfileData, getEnhancedUserData } from './profile-api.js';
+import { debugError, debugLog, debugWarn } from './debug-logger.js';
 
 /**
  * Initialize BlueConic sync
  * Called automatically on page load
  */
 export async function initBlueConic() {
-    console.log('BlueConic Module: Initializing...');
+    debugLog('BlueConic Module: Initializing...');
     
     // Check if user is logged in
     if (!window.circleUser) {
-        console.log('BlueConic Module: No user data found in window.circleUser');
+        debugLog('BlueConic Module: No user data found in window.circleUser');
         return;
     }
     
@@ -38,10 +39,10 @@ export async function initBlueConic() {
         const profileResponse = await getProfileData();
         
         // Console log for debugging - see what's in the profile
-        console.log('BlueConic Module: Profile Data:', profileResponse);
+        debugLog(`BlueConic Module: Profile Data: ${JSON.stringify(profileResponse)}`);
         
         if (profileResponse && profileResponse.customFields) {
-            console.log('BlueConic Module: Custom Fields:', profileResponse.customFields);
+            debugLog(`BlueConic Module: Custom Fields: ${JSON.stringify(profileResponse.customFields)}`);
             
             // Add custom fields from profile API
             // Example: BASIS ID
@@ -60,10 +61,10 @@ export async function initBlueConic() {
             // }
             
         } else {
-            console.log('BlueConic Module: No custom fields found');
+            debugLog('BlueConic Module: No custom fields found');
         }
     } catch (error) {
-        console.log('BlueConic Module: Could not fetch profile data:', error);
+        debugWarn(`BlueConic Module: Could not fetch profile data: ${String(error?.message || error)}`);
     }
     
     // Try to fetch enhanced user data (subscription, roles, policies)
@@ -71,7 +72,7 @@ export async function initBlueConic() {
         const enhancedData = await getEnhancedUserData();
         
         // Console log for debugging - see what's in the enhanced data
-        console.log('BlueConic Module: Enhanced User Data:', enhancedData);
+        debugLog(`BlueConic Module: Enhanced User Data: ${JSON.stringify(enhancedData)}`);
         
         if (enhancedData) {
             // Add subscription status
@@ -94,16 +95,16 @@ export async function initBlueConic() {
             //     blueConicUser[`${demographicKey}visible_in_directory`] = String(enhancedData.preferences.visible_in_member_directory);
             // }
             
-            console.log('BlueConic Module: Enhanced data added to sync');
+            debugLog('BlueConic Module: Enhanced data added to sync');
         } else {
-            console.log('BlueConic Module: No enhanced data available');
+            debugLog('BlueConic Module: No enhanced data available');
         }
     } catch (error) {
-        console.log('BlueConic Module: Could not fetch enhanced user data:', error);
+        debugWarn(`BlueConic Module: Could not fetch enhanced user data: ${String(error?.message || error)}`);
     }
     
     // Console log final object being sent to BlueConic
-    console.log('BlueConic Module: Final data to sync:', blueConicUser);
+    debugLog(`BlueConic Module: Final data to sync: ${JSON.stringify(blueConicUser)}`);
     
     // Update BlueConic profile
     await updateBlueconicProfileFields(blueConicUser);
@@ -138,7 +139,7 @@ async function updateBlueconicProfileFields(blueConicUser) {
         var properties = Object.keys(blueConicUser);
         
         if (!profile) {
-            console.log('BlueConic Module: BlueConic profile not available');
+            debugWarn('BlueConic Module: BlueConic profile not available');
             return;
         }
         
@@ -158,11 +159,11 @@ async function updateBlueconicProfileFields(blueConicUser) {
                     }
                     
                     if (currentValue === newValue) {
-                        console.log('BlueConic Module: profile[' + key + '] is already set to "' + newValue + '"');
+                        debugLog('BlueConic Module: profile[' + key + '] is already set to "' + newValue + '"');
                     } else {
                         profile.setValue(key, newValue);
                         hasChanges = true;
-                        console.log('BlueConic Module: profile[' + key + '] updated from "' + currentValue + '" to "' + newValue + '"');
+                        debugLog('BlueConic Module: profile[' + key + '] updated from "' + currentValue + '" to "' + newValue + '"');
                     }
                 }
             }
@@ -170,14 +171,14 @@ async function updateBlueconicProfileFields(blueConicUser) {
             // Only update the profile once if there were any changes
             if (hasChanges) {
                 profileApi.updateProfile();
-                console.log('BlueConic Module: Profile updated with all changes');
+                debugLog('BlueConic Module: Profile updated with all changes');
             } else {
-                console.log('BlueConic Module: No changes detected, profile not updated');
+                debugLog('BlueConic Module: No changes detected, profile not updated');
             }
         });
         
     } catch (ex) {
-        console.error('BlueConic Module: Error updating profile:', ex);
+        debugError(`BlueConic Module: Error updating profile: ${String(ex?.message || ex)}`);
     }
 }
 
@@ -186,7 +187,7 @@ async function updateBlueconicProfileFields(blueConicUser) {
  * Useful for debugging or triggering updates after profile changes
  */
 export function syncBlueConic() {
-    console.log('BlueConic Module: Manual sync triggered');
+    debugLog('BlueConic Module: Manual sync triggered');
     initBlueConic();
 }
 

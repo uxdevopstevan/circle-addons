@@ -8,18 +8,19 @@
  */
 
 import branding from '@circle-config/signup-branding';
+import { debugLog, debugWarn } from './debug-logger.js';
 
 /**
  * Initialize sign-up page customization
  * Assumes we're already on the sign-up page (routing handled by page-scripts.js)
  */
 export function initSignUp() {
-    console.log('SignUp Module: Initializing...');
+    debugLog('SignUp Module: Initializing...');
     
     const reactRoot = document.querySelector('#react-root');
 
     if (!reactRoot) {
-        console.warn('SignUp Module: reactRoot not found');
+        debugWarn('SignUp Module: reactRoot not found');
         return;
     }
 
@@ -27,7 +28,7 @@ export function initSignUp() {
     const executeLogic = (stayPostLogo) => {
         const heading = reactRoot.querySelector('h1');
         if (!heading) {
-            console.warn('SignUp Module: heading not found after logo was found.');
+            debugWarn('SignUp Module: heading not found after logo was found.');
             return;
         }
 
@@ -60,7 +61,7 @@ export function initSignUp() {
             
             if (stayPostLogo.parentNode) {
                 stayPostLogo.parentNode.insertBefore(newImage, stayPostLogo.nextSibling);
-                console.log('SignUp Module: New image added after logo for group:', group || 'default');
+                debugLog(`SignUp Module: New image added after logo for group: ${group || 'default'}`);
             }
         }
     };
@@ -70,7 +71,7 @@ export function initSignUp() {
     // First, check if the logo is already there
     const initialLogo = reactRoot.querySelector('img');
     if (initialLogo) {
-        console.log('SignUp Module: Logo found immediately.');
+        debugLog('SignUp Module: Logo found immediately.');
         executeLogic(initialLogo);
         return;
     }
@@ -79,7 +80,7 @@ export function initSignUp() {
     const observer = new MutationObserver((mutations, obs) => {
         const stayPostLogo = reactRoot.querySelector('img');
         if (stayPostLogo) {
-            console.log('SignUp Module: Logo found after a DOM mutation.');
+            debugLog('SignUp Module: Logo found after a DOM mutation.');
             executeLogic(stayPostLogo);
             obs.disconnect(); // Stop observing once we've found it
         }

@@ -5,6 +5,8 @@
  * anywhere on the Circle.so site with configurable attributes.
  */
 
+import { debugError, debugLog } from './debug-logger.js';
+
 /**
  * Custom Web Component: <circle-widget>
  * 
@@ -21,15 +23,15 @@ class CircleWidget extends HTMLElement {
     }
     
     connectedCallback() {
-        console.log('CircleWidget: Component detected and mounted');
+        debugLog('CircleWidget: Component detected and mounted');
         
         // Check preconditions
         if (!this.checkPreconditions()) {
-            console.log('CircleWidget: Preconditions not met, skipping execution');
+            debugLog('CircleWidget: Preconditions not met, skipping execution');
             return;
         }
         
-        console.log('CircleWidget: Preconditions met, executing logic');
+        debugLog('CircleWidget: Preconditions met, executing logic');
         this.executeLogic();
     }
     
@@ -40,10 +42,10 @@ class CircleWidget extends HTMLElement {
         const pageAttr = this.getAttribute('page');
         if (pageAttr) {
             if (currentPath === pageAttr) {
-                console.log(`CircleWidget: Page match found - ${pageAttr}`);
+                debugLog(`CircleWidget: Page match found - ${pageAttr}`);
                 return true;
             } else {
-                console.log(`CircleWidget: Page mismatch - expected ${pageAttr}, got ${currentPath}`);
+                debugLog(`CircleWidget: Page mismatch - expected ${pageAttr}, got ${currentPath}`);
                 return false;
             }
         }
@@ -54,20 +56,20 @@ class CircleWidget extends HTMLElement {
             try {
                 const regex = new RegExp(pagePattern);
                 if (regex.test(currentPath)) {
-                    console.log(`CircleWidget: Page pattern match found - ${pagePattern}`);
+                    debugLog(`CircleWidget: Page pattern match found - ${pagePattern}`);
                     return true;
                 } else {
-                    console.log(`CircleWidget: Page pattern mismatch - pattern ${pagePattern}, path ${currentPath}`);
+                    debugLog(`CircleWidget: Page pattern mismatch - pattern ${pagePattern}, path ${currentPath}`);
                     return false;
                 }
             } catch (e) {
-                console.error('CircleWidget: Invalid regex pattern', e);
+                debugError(`CircleWidget: Invalid regex pattern: ${String(e?.message || e)}`);
                 return false;
             }
         }
         
         // If no conditions specified, allow execution
-        console.log('CircleWidget: No preconditions specified, allowing execution');
+        debugLog('CircleWidget: No preconditions specified, allowing execution');
         return true;
     }
     
@@ -80,8 +82,8 @@ class CircleWidget extends HTMLElement {
             allAttributes[attr.name] = attr.value;
         }
         
-        console.log('CircleWidget: EXECUTING with configuration:', allAttributes);
-        console.log(`CircleWidget: Group = ${group || 'none'}`);
+        debugLog(`CircleWidget: EXECUTING with configuration: ${JSON.stringify(allAttributes)}`);
+        debugLog(`CircleWidget: Group = ${group || 'none'}`);
         
         // Create template with Shadow DOM for native app compatibility
         const template = document.createElement('template');
@@ -129,7 +131,7 @@ class CircleWidget extends HTMLElement {
         this.shadowRoot.innerHTML = '';
         this.shadowRoot.appendChild(template.content.cloneNode(true));
         
-        console.log('CircleWidget: Visual output rendered in Shadow DOM');
+        debugLog('CircleWidget: Visual output rendered in Shadow DOM');
     }
 }
 
@@ -137,18 +139,18 @@ class CircleWidget extends HTMLElement {
  * Initialize web component system
  */
 export function initWebComponent() {
-    console.log('WebComponent Module: Initializing...');
+    debugLog('WebComponent Module: Initializing...');
     
     // Register the custom element if not already registered
     if (!customElements.get('circle-widget')) {
         customElements.define('circle-widget', CircleWidget);
-        console.log('WebComponent Module: Custom element <circle-widget> registered');
+        debugLog('WebComponent Module: Custom element <circle-widget> registered');
     }
     
     // Process any existing web components on the page
     const existingComponents = document.querySelectorAll('circle-widget');
     if (existingComponents.length > 0) {
-        console.log(`WebComponent Module: Found ${existingComponents.length} existing component(s)`);
+        debugLog(`WebComponent Module: Found ${existingComponents.length} existing component(s)`);
     }
     
     // Set up MutationObserver to detect dynamically added components
@@ -158,13 +160,13 @@ export function initWebComponent() {
             mutation.addedNodes.forEach((node) => {
                 // Check if the added node is our web component
                 if (node.nodeName === 'CIRCLE-WIDGET') {
-                    console.log('WebComponent Module: Detected new circle-widget component added to DOM');
+                    debugLog('WebComponent Module: Detected new circle-widget component added to DOM');
                 }
                 // Also check child nodes in case component is nested
                 if (node.querySelectorAll) {
                     const nestedComponents = node.querySelectorAll('circle-widget');
                     if (nestedComponents.length > 0) {
-                        console.log(`WebComponent Module: Detected ${nestedComponents.length} nested component(s) added to DOM`);
+                        debugLog(`WebComponent Module: Detected ${nestedComponents.length} nested component(s) added to DOM`);
                     }
                 }
             });
@@ -177,6 +179,6 @@ export function initWebComponent() {
         subtree: true
     });
     
-    console.log('WebComponent Module: MutationObserver active and watching for components');
+    debugLog('WebComponent Module: MutationObserver active and watching for components');
 }
 

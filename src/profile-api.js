@@ -5,6 +5,8 @@
  * This module can be imported by any other module that needs profile data.
  */
 
+import { debugError, debugLog } from './debug-logger.js';
+
 const STAYPOST_WEB_ORIGIN = __STAYPOST_WEB_ORIGIN__;
 
 /**
@@ -74,7 +76,7 @@ export async function getProfileData(publicUid = null) {
         
         const profileData = await response.json();
         
-        console.log('Profile API: Successfully fetched profile data');
+        debugLog('Profile API: Successfully fetched profile data');
         
         // Return structured data for easy access
         return {
@@ -84,7 +86,7 @@ export async function getProfileData(publicUid = null) {
         };
 
     } catch (error) {
-        console.error('Profile API: Could not fetch profile data:', error);
+        debugError(`Profile API: Could not fetch profile data: ${String(error?.message || error)}`);
         return null;
     }
 }
@@ -109,7 +111,7 @@ export async function getEnhancedUserData() {
         
         const data = await response.json();
         
-        console.log('Profile API: Successfully fetched enhanced user data');
+        debugLog('Profile API: Successfully fetched enhanced user data');
         
         // Return structured data with commonly used fields
         return {
@@ -135,7 +137,7 @@ export async function getEnhancedUserData() {
         };
 
     } catch (error) {
-        console.error('Profile API: Could not fetch enhanced user data:', error);
+        debugError(`Profile API: Could not fetch enhanced user data: ${String(error?.message || error)}`);
         return null;
     }
 }
@@ -201,12 +203,12 @@ export async function updateProfile(updates, publicUid = null) {
         return false;
     }
     
-    console.log('Profile API: Updating profile...', updates);
+    debugLog(`Profile API: Updating profile... ${JSON.stringify(updates)}`);
     
     // First, get the current profile data to preserve other fields
     const profileResponse = await getProfileData(uid);
     if (!profileResponse || !profileResponse.fullData) {
-        console.error('Profile API: Cannot update - failed to fetch current profile');
+        debugError('Profile API: Cannot update - failed to fetch current profile');
         return false;
     }
     
@@ -266,7 +268,7 @@ export async function updateProfile(updates, publicUid = null) {
     
     const url = `${STAYPOST_WEB_ORIGIN}/internal_api/profiles/${uid}`;
     
-    console.log('Profile API: Sending update request');
+    debugLog('Profile API: Sending update request');
     
     try {
         const response = await fetch(url, {
@@ -281,16 +283,16 @@ export async function updateProfile(updates, publicUid = null) {
         
         if (!response.ok) {
             const errorText = await response.text();
-            console.error('Profile API: Update failed:', response.status, errorText);
+            debugError(`Profile API: Update failed: ${String(response.status)} ${String(errorText)}`);
             return false;
         }
         
         const result = await response.json();
-        console.log('Profile API: Profile updated successfully');
+        debugLog('Profile API: Profile updated successfully');
         return true;
         
     } catch (error) {
-        console.error('Profile API: Update error:', error);
+        debugError(`Profile API: Update error: ${String(error?.message || error)}`);
         return false;
     }
 }

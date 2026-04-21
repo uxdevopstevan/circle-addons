@@ -2,8 +2,8 @@
  * Circle Addons Loader
  *
  * Loads a specific version of circle-addons.js based on query string:
- * - ?debug=v1.3  -> {__CIRCLE_ADDONS_SCRIPTS_BASE_URL__}/v1.3/circle-addons.js
- * - ?debug=1.3   -> same as above (auto-prefixes "v")
+ * - ?debugVersion=v1.3  -> {__CIRCLE_ADDONS_SCRIPTS_BASE_URL__}/v1.3/circle-addons.js
+ * - ?debugVersion=1.3   -> same as above (auto-prefixes "v")
  *
  * If no debug param is present (or invalid), it loads the defaultVersion.
  *
@@ -18,7 +18,7 @@
   var DEBUG_FILE = 'circle-addons.js';
 
   // Change this default (or override via window.CIRCLE_ADDONS_DEFAULT_VERSION before this script runs)
-  var defaultVersion = (window.CIRCLE_ADDONS_DEFAULT_VERSION || 'v1.3') + '';
+  var defaultVersion = (window.CIRCLE_ADDONS_DEFAULT_VERSION || 'v2') + '';
 
   function getParam(name) {
     try {
@@ -54,13 +54,13 @@
     return false;
   }
 
-  var debugVersion = normalizeVersion(getParam('debug'));
+  var debugVersion = normalizeVersion(getParam('debugVersion'));
   var chosenVersion = debugVersion || normalizeVersion(defaultVersion);
   var fileName = debugVersion ? DEBUG_FILE : PROD_FILE;
 
   if (!chosenVersion) {
     // Fall back to a conservative known path if the defaultVersion is misconfigured
-    chosenVersion = 'v1.3';
+    chosenVersion = 'v2';
   }
 
   var url = BASE + encodeURIComponent(chosenVersion) + '/' + fileName;

@@ -9,28 +9,30 @@
 
 import { initPageScripts } from './page-scripts.js';
 import { initBlueConic, syncBlueConic } from './blueconic.js';
+import { debugError, debugLog, initDebugLogger } from './debug-logger.js';
 // import { initWebComponent } from './webcomponent.js';
 
 /**
  * Initialize all modules
  */
 function initAll() {
-    console.log('Circle Addons: Initializing all modules...');
+    initDebugLogger();
+    debugLog('Circle Addons: Initializing all modules...');
     
     // Initialize page-specific scripts (handles routing internally)
     try {
         initPageScripts();
-        console.log('Circle Addons: Page scripts initialized');
+        debugLog('Circle Addons: Page scripts initialized');
     } catch (error) {
-        console.error('Circle Addons: Error initializing page scripts:', error);
+        debugError(`Circle Addons: Error initializing page scripts: ${String(error?.message || error)}`);
     }
     
     // Initialize BlueConic integration (runs on all pages for logged-in users)
     try {
         initBlueConic();
-        console.log('Circle Addons: BlueConic integration initialized');
+        debugLog('Circle Addons: BlueConic integration initialized');
     } catch (error) {
-        console.error('Circle Addons: Error initializing BlueConic:', error);
+        debugError(`Circle Addons: Error initializing BlueConic: ${String(error?.message || error)}`);
     }
     
     // Initialize always-on web components
@@ -41,7 +43,7 @@ function initAll() {
     //     console.error('Circle Addons: Error initializing WebComponent module:', error);
     // }
     
-    console.log('Circle Addons: All modules initialized successfully');
+    debugLog('Circle Addons: All modules initialized successfully');
 }
 
 /**
@@ -49,12 +51,14 @@ function initAll() {
  */
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function() {
-        console.log('Document ready. Initialising Circle scripts...');
+        initDebugLogger();
+        debugLog('Document ready. Initialising Circle scripts...');
         initAll();
     });
 } else {
     // DOM is already ready
-    console.log('Document ready. Initialising Circle scripts...');
+    initDebugLogger();
+    debugLog('Document ready. Initialising Circle scripts...');
     initAll();
 }
 

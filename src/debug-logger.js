@@ -4,31 +4,21 @@
  * Persistent on-screen debugging console that shows logs in real-time.
  * Useful for debugging on mobile devices and native apps where console access is limited.
  * 
- * Only visible to authorized users (admins or specific publicUids)
+ * Enabled only when `debug=1|true` is present in the URL query string.
  */
 
 /**
- * Check if current user is authorized to see debug logger
- * Only admins can see the debug logger
- * @returns {boolean}
+ * Check whether debug is enabled for this pageview.
+ * @returns {boolean} true if `?debug=1|true`
  */
-function isUserAuthorized() {
-    // Check if circleUser object exists
-    if (!window.circleUser) {
-        console.log('Debug Logger: No circleUser object found');
+function isDebugEnabled() {
+    try {
+        const urlParams = new URLSearchParams(window.location.search || '');
+        const value = (urlParams.get('debug') || '').toLowerCase();
+        return value === '1' || value === 'true';
+    } catch (e) {
         return false;
     }
-    
-    const user = window.circleUser;
-    
-    // Only allow admins
-    if (user.isAdmin === 'true' || user.isAdmin === true) {
-        console.log('Debug Logger: User is admin, authorized');
-        return true;
-    }
-    
-    console.log('Debug Logger: User is not an admin, debug logger hidden');
-    return false;
 }
 
 class DebugLogger {
@@ -37,21 +27,18 @@ class DebugLogger {
         this.container = null;
         this.logsList = null;
         this.isMinimized = false;
-        this.isAuthorized = false;
+        this.enabled = false;
+        this.maxLogs = 300;
+        this.pendingDomEntries = [];
+        this.flushScheduled = false;
     }
 
     /**
      * Initialize the debug logger UI
      */
     init() {
-        // Check authorization first
-        if (!isUserAuthorized()) {
-            this.isAuthorized = false;
-            console.log('Debug Logger: Not authorized, UI will not be shown');
-            return;
-        }
-        
-        this.isAuthorized = true;
+        this.enabled = isDebugEnabled();
+        if (!this.enabled) return;
         
         if (this.container) {
             return; // Already initialized
@@ -170,48 +157,87 @@ class DebugLogger {
      * @param {string} type - Type of log: 'info', 'success', 'warn', 'error'
      */
     log(message, type = 'info') {
-        // Always log to console
-        console.log(`[Circle Debug] ${message}`);
-        
-        // Check if we should show UI
-        if (!this.container) {
-            this.init();
+        if (!this.enabled) {
+            // Lazily compute enabled (so callers don't need to init explicitly)
+            this.enabled = isDebugEnabled();
         }
-        
-        // If user not authorized, only log to console
-        if (!this.isAuthorized) {
-            return;
-        }
+        if (!this.enabled) return;
+
+        // Ensure UI exists when enabled
+        if (!this.container) this.init();
 
         const timestamp = new Date().toLocaleTimeString();
         const logEntry = { message, type, timestamp };
         this.logs.push(logEntry);
 
-        // Create log element
-        const logElement = document.createElement('div');
-        logElement.style.cssText = `
-            padding: 6px 8px;
-            margin-bottom: 4px;
-            border-radius: 4px;
-            word-wrap: break-word;
-            background: ${this.getColorForType(type, true)};
-            color: ${this.getColorForType(type, false)};
-            border-left: 3px solid ${this.getColorForType(type, false)};
-        `;
-        
-        logElement.innerHTML = `
-            <span style="opacity: 0.7; font-size: 10px;">[${timestamp}]</span>
-            <strong style="margin: 0 4px;">${this.getIconForType(type)}</strong>
-            <span>${this.escapeHtml(message)}</span>
-        `;
+        // Cap in-memory logs (prevent runaway memory usage)
+        if (this.logs.length > this.maxLogs) {
+            this.logs.splice(0, this.logs.length - this.maxLogs);
+        }
 
-        this.logsList.appendChild(logElement);
+        // Queue DOM work (batching prevents UI thrash if logs are high-volume)
+        this.pendingDomEntries.push({ message, type, timestamp });
+        this.scheduleFlush();
+    }
+
+    scheduleFlush() {
+        if (this.flushScheduled) return;
+        this.flushScheduled = true;
+        const schedule = (cb) => {
+            try {
+                if (typeof window.requestAnimationFrame === 'function') return window.requestAnimationFrame(cb);
+            } catch (e) {}
+            return setTimeout(cb, 16);
+        };
+        schedule(() => {
+            this.flushScheduled = false;
+            this.flushDom();
+        });
+    }
+
+    flushDom() {
+        if (!this.enabled || !this.logsList) {
+            this.pendingDomEntries = [];
+            return;
+        }
+
+        // Drop excess queued entries beyond maxLogs (keep newest)
+        if (this.pendingDomEntries.length > this.maxLogs) {
+            this.pendingDomEntries = this.pendingDomEntries.slice(-this.maxLogs);
+        }
+
+        const fragment = document.createDocumentFragment();
+        for (const entry of this.pendingDomEntries) {
+            const { message, type, timestamp } = entry;
+            const logElement = document.createElement('div');
+            logElement.style.cssText = `
+                padding: 6px 8px;
+                margin-bottom: 4px;
+                border-radius: 4px;
+                word-wrap: break-word;
+                background: ${this.getColorForType(type, true)};
+                color: ${this.getColorForType(type, false)};
+                border-left: 3px solid ${this.getColorForType(type, false)};
+            `;
+            logElement.innerHTML = `
+                <span style="opacity: 0.7; font-size: 10px;">[${timestamp}]</span>
+                <strong style="margin: 0 4px;">${this.getIconForType(type)}</strong>
+                <span>${this.escapeHtml(String(message))}</span>
+            `;
+            fragment.appendChild(logElement);
+        }
+        this.pendingDomEntries = [];
+
+        this.logsList.appendChild(fragment);
+
+        // Trim DOM nodes to maxLogs
+        while (this.logsList.childNodes.length > this.maxLogs) {
+            this.logsList.removeChild(this.logsList.firstChild);
+        }
 
         // Auto-scroll to bottom
         const logsContainer = document.getElementById('debug-logs-container');
-        if (logsContainer) {
-            logsContainer.scrollTop = logsContainer.scrollHeight;
-        }
+        if (logsContainer) logsContainer.scrollTop = logsContainer.scrollHeight;
     }
 
     /**
@@ -306,6 +332,10 @@ export function debugError(message) {
 
 export function initDebugLogger() {
     debugLogger.init();
+}
+
+export function isDebugLoggerEnabled() {
+    return isDebugEnabled();
 }
 
 export function clearDebugLogs() {
