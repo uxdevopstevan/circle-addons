@@ -19,7 +19,7 @@ app/
 │   ├── signup.js                  # Sign-up page UI tweaks
 │   ├── blueconic.js               # BlueConic sync module (always-on)
 │   ├── profile-api.js             # Shared Circle profile API helpers
-│   ├── basis-points.js            # Submit-basis-points page feature
+│   ├── update-profile-fields.js   # Profile field sync + optional iframe submit
 │   ├── checkout.js                # Checkout feature(s)
 │   ├── checkout-promos-config.js  # Checkout page coupon feature(s)
 │   ├── checkout-promos.js         # Checkout page coupon feature(s)
@@ -56,17 +56,51 @@ Use the development build with source maps:
 
 ## 🔧 Configuration (build-time)
 
-### `WEB_ORIGIN`
+All configuration is read from `.env` / `.env.local` at build time and inlined into `dist/` output.
 
-`src/profile-api.js` uses a build-time constant for the Circle web origin (used for internal API calls).
+### Required env vars
 
-Set it locally in `.env` (gitignored):
+#### `WEB_ORIGIN`
+- **Used by**: `src/profile-api.js` (Circle internal API origin)
+- **Example**:
 
 ```bash
 WEB_ORIGIN=https://yoursite.circle.so
 ```
 
-Build output (`dist/`) will inline the value, so runtime does not need a `.env`.
+#### `CIRCLE_BASIS_POINTS_BASE_URL`
+- **Used by**: `src/update-profile-fields.js` (iframe form endpoint)
+- **Example**:
+
+```bash
+CIRCLE_BASIS_POINTS_BASE_URL=https://example.com/submit_basis_points
+```
+
+#### `CIRCLE_ADDONS_SCRIPTS_BASE_URL`
+- **Used by**: `circle-addons-loader.js` (base URL used to load versioned bundles)
+- **Example**:
+
+```bash
+CIRCLE_ADDONS_SCRIPTS_BASE_URL=https://your-cdn.com/assets/scripts/circle/
+```
+
+#### `CIRCLE_ADDONS_IMAGES_BASE_URL`
+- **Used by**: `src/signup.js` (base URL for group logo images)
+- **Example**:
+
+```bash
+CIRCLE_ADDONS_IMAGES_BASE_URL=https://your-cdn.com/assets/images/circle/
+```
+
+#### `CIRCLE_BLUECONIC_DOMAIN_KEY`
+- **Used by**: `src/blueconic.js` (BlueConic property key prefix)
+- **Example**:
+
+```bash
+CIRCLE_BLUECONIC_DOMAIN_KEY=your_domain_key_
+```
+
+Build output (`dist/`) inlines these values, so runtime does not need a `.env`.
 
 ## 📦 Modules
 
@@ -128,6 +162,4 @@ npm run build:prod   # Same as build (explicit)
 Open your browser devtools console; modules log verbosely on init and on key actions.
 
 ## 📝 Notes
-
-This repo contains older/legacy scripts under `signup-script/` and `modules/`. Current code is in `src/` and built via `build.js`.
 

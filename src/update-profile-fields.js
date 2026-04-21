@@ -1,14 +1,16 @@
 /**
- * Basis Points Submission Module
+ * Profile Field Sync Module
  * 
- * Fetches user profile data including basis_id and handles
- * basis points submission functionality.
+ * Generic helper to:
+ * - read/update a configured profile custom field
+ * - optionally submit a set of form fields to an external domain via a hidden iframe
  * 
- * Note: This module is called by page-scripts.js when on the submit-basis-points page.
+ * Config comes from @circle-config/profile-field-sync (public/private JSON).
  */
 
 // Import shared profile API utilities
 import { getCurrentUserPublicUid, getUserData, getProfileData, updateCustomField } from './profile-api.js';
+import cfg from '@circle-config/profile-field-sync';
 
 // Debug logger - comment out for production, uncomment for debugging
 // import { initDebugLogger, debugLog, debugSuccess, debugError, debugWarn } from './debug-logger.js';
@@ -52,66 +54,137 @@ function getRegistrationClaim() {
 }
 
 /**
- * Get the basisFormWrapper element
+ * Get the formWrapper element
  * @returns {HTMLElement|null}
  */
 function getWrapper() {
-    const wrapper = document.getElementById('basisFormWrapper');
+    const wrapperId = (cfg && cfg.dom && cfg.dom.wrapperId) ? cfg.dom.wrapperId : 'profileFieldSyncWrapper';
+    const wrapper = document.getElementById(wrapperId);
     if (!wrapper) {
-        debugError('basisFormWrapper div not found');
-        console.error('Basis Points Module: basisFormWrapper div not found');
+        debugError(`${wrapperId} div not found`);
+        console.error('Profile Field Sync: wrapper div not found:', wrapperId);
     }
     return wrapper;
 }
 
+function shouldRun() {
+    if (!cfg || cfg.enabled === false) return false;
+    const match = cfg.match || {};
+    const path = window.location.pathname || '';
+    if (typeof match.pathIncludes === 'string' && match.pathIncludes.length > 0) {
+        return path.includes(match.pathIncludes);
+    }
+    return true;
+}
+
 /**
  * Create and load hidden iframe with form submission
- * @param {string} email - User email
- * @param {string} firstName - User first name
- * @param {string} lastName - User last name
- * @param {string} basisId - BASIS member ID
+ * @param {{email?: string, firstName?: string, lastName?: string}} userData - User data for submission
+ * @param {string} fieldValue - Field value
  */
-function createHiddenIframe(email, firstName, lastName, basisId) {
+function getUrlParam(name) {
+    try {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get(name) || '';
+    } catch (e) {
+        return '';
+    }
+}
+
+function resolveSubmitFieldValue(from, context) {
+    if (!from) return '';
+
+    if (from === 'fieldValue') return context.fieldValue || '';
+    if (from === 'user.email') return context.userData.email || '';
+    if (from === 'user.firstName') return context.userData.firstName || '';
+    if (from === 'user.lastName') return context.userData.lastName || '';
+
+    if (from.startsWith('profile.')) {
+        const key = from.slice('profile.'.length);
+        const customFields = context.customFields || {};
+        return (key && Object.prototype.hasOwnProperty.call(customFields, key)) ? (customFields[key] || '') : '';
+    }
+
+    if (from.startsWith('url.')) {
+        const key = from.slice('url.'.length);
+        // Keep existing semantics for booleans:
+        // registration_claim was previously included only when "true".
+        if (key === 'registration_claim') return getRegistrationClaim() ? 'true' : '';
+        return getUrlParam(key);
+    }
+
+    return '';
+}
+
+function createHiddenIframe(userData, fieldValue, customFields) {
     // Set up message listener for iframe communication
     setupMessageListener();
     
     // Build URL with parameters
-    const baseUrl = __CIRCLE_BASIS_POINTS_BASE_URL__;
-    const params = new URLSearchParams({
-        email,
-        firstName,
-        lastName,
-        basisId,
-        _t: Date.now() // Cache-busting timestamp
-    });
+    const baseUrl = cfg && cfg.submit && cfg.submit.baseUrl;
+    if (!baseUrl) {
+        console.error('Profile Field Sync: Missing submit.baseUrl in config');
+        return;
+    }
+    const params = new URLSearchParams();
+
+    const ctx = { userData: userData || {}, fieldValue, customFields: customFields || {} };
+
+    // New config format: submit.fields[]
+    if (cfg && cfg.submit && Array.isArray(cfg.submit.fields)) {
+        for (const f of cfg.submit.fields) {
+            if (!f || typeof f.name !== 'string') continue;
+            const val = resolveSubmitFieldValue(f.from, ctx);
+            if (val) {
+                params.append(f.name, val);
+            } else if (!f.optional) {
+                // If it's required but empty, still append empty to preserve contract.
+                params.append(f.name, '');
+            }
+        }
+    } else {
+        // Backward-compatible: submit.params + include* flags
+        const paramsCfg = (cfg && cfg.submit && cfg.submit.params) ? cfg.submit.params : {};
+        params.append(paramsCfg.email || 'email', (userData && userData.email) || '');
+        params.append(paramsCfg.firstName || 'firstName', (userData && userData.firstName) || '');
+        params.append(paramsCfg.lastName || 'lastName', (userData && userData.lastName) || '');
+        params.append(paramsCfg.fieldValue || 'value', fieldValue);
+    }
+
+    // Cache-busting timestamp (optional)
+    if (!cfg || !cfg.submit || cfg.submit.includeTimestampParam !== false) {
+        const name = (cfg && cfg.submit && cfg.submit.timestampParamName) ? cfg.submit.timestampParamName : '_t';
+        params.append(name, String(Date.now()));
+    }
     
-    // Add UTM parameters if present
-    const utmParams = getUtmParams();
-    if (utmParams.utm_source) params.append('utm_source', utmParams.utm_source);
-    if (utmParams.utm_medium) params.append('utm_medium', utmParams.utm_medium);
-    if (utmParams.utm_campaign) params.append('utm_campaign', utmParams.utm_campaign);
-    
-    // Add course_name if present
-    const courseName = getCourseName();
-    if (courseName) params.append('course_name', courseName);
-    
-    // Add registration_claim if true
-    const registrationClaim = getRegistrationClaim();
-    if (registrationClaim) params.append('registration_claim', 'true');
+    // Backward-compatible extras (only if NOT using submit.fields[])
+    const usingFields = cfg && cfg.submit && Array.isArray(cfg.submit.fields);
+    if (!usingFields) {
+        // Add UTM parameters if present
+        if (!cfg || !cfg.submit || cfg.submit.includeUtm !== false) {
+            const utmParams = getUtmParams();
+            if (utmParams.utm_source) params.append('utm_source', utmParams.utm_source);
+            if (utmParams.utm_medium) params.append('utm_medium', utmParams.utm_medium);
+            if (utmParams.utm_campaign) params.append('utm_campaign', utmParams.utm_campaign);
+        }
+        
+        // Add course_name if present
+        if (!cfg || !cfg.submit || cfg.submit.includeCourseName !== false) {
+            const courseName = getCourseName();
+            if (courseName) params.append('course_name', courseName);
+        }
+        
+        // Add registration_claim if true
+        if (!cfg || !cfg.submit || cfg.submit.includeRegistrationClaim !== false) {
+            const registrationClaim = getRegistrationClaim();
+            if (registrationClaim) params.append('registration_claim', 'true');
+        }
+    }
     
     const iframeUrl = `${baseUrl}?${params.toString()}`;
     
-    debugSuccess(`Loading iframe - ${firstName} ${lastName}, BASIS: ${basisId}`);
-    if (utmParams.utm_source || utmParams.utm_medium || utmParams.utm_campaign) {
-        debugLog(`UTM params: ${JSON.stringify(utmParams)}`);
-    }
-    if (courseName) {
-        debugLog(`Course name: ${courseName}`);
-    }
-    if (registrationClaim) {
-        debugLog(`Registration claim: true`);
-    }
-    console.log('Basis Points Module: Loading iframe with URL:', iframeUrl);
+    debugSuccess(`Loading iframe - ${firstName} ${lastName}`);
+    console.log('Profile Field Sync: Loading iframe with URL:', iframeUrl);
     
     // Show loading state
     showLoadingState();
@@ -127,55 +200,64 @@ function createHiddenIframe(email, firstName, lastName, basisId) {
         display: none;
         visibility: hidden;
     `;
-    iframe.title = 'Submit BASIS Points';
+    iframe.title = (cfg && cfg.profile && cfg.profile.label) ? `Submit ${cfg.profile.label}` : 'Submit';
     
     // Add to body (hidden from user)
     document.body.appendChild(iframe);
 }
 
 /**
- * Get BASIS ID from profile
+ * Get configured field value from profile
  * Uses the shared profile API module
- * @returns {Promise<string|null>} The BASIS ID or null
+ * @returns {Promise<string|null>} The field value or null
  */
-async function getBasisId() {
+async function getFieldValue() {
     const profileResponse = await getProfileData();
     
     if (!profileResponse || !profileResponse.customFields) {
-        debugError('Cannot get BASIS ID: Profile data not available');
-        console.error('Basis Points Module: Profile data not available');
+        debugError('Cannot get field value: Profile data not available');
+        console.error('Profile Field Sync: Profile data not available');
         return null;
     }
     
-    const basisId = profileResponse.customFields.basis_id || null;
+    const fieldKey = cfg && cfg.profile && cfg.profile.fieldKey;
+    const basisId = fieldKey ? (profileResponse.customFields[fieldKey] || null) : null;
     
     if (basisId) {
-        debugSuccess(`BASIS ID found: ${basisId}`);
-        console.log('Basis Points Module: BASIS ID:', basisId);
+        debugSuccess(`Field found: ${basisId}`);
+        console.log('Profile Field Sync: Field value:', basisId);
     }
     
     return basisId;
 }
 
+async function getProfileCustomFields() {
+    const profileResponse = await getProfileData();
+    if (!profileResponse || !profileResponse.customFields) return {};
+    return profileResponse.customFields || {};
+}
+
 /**
- * Update the user's BASIS ID in their profile
+ * Update the user's configured field in their profile
  * Uses the shared profile API module
- * @param {string} newBasisId - The new BASIS ID to save
+ * @param {string} newBasisId - The new field value to save
  * @returns {Promise<boolean>} True if successful
  */
-async function updateProfileBasisId(newBasisId) {
-    debugLog(`Updating profile with BASIS ID: ${newBasisId}`);
-    console.log('Basis Points Module: Updating profile with BASIS ID:', newBasisId);
+async function updateProfileField(newValue) {
+    const fieldKey = cfg && cfg.profile && cfg.profile.fieldKey;
+    if (!fieldKey) return false;
+    debugLog(`Updating profile field ${fieldKey}: ${newValue}`);
+    console.log('Profile Field Sync: Updating profile field:', fieldKey);
     
     // Use the shared updateCustomField function from profile-api
-    const success = await updateCustomField('basis_id', newBasisId);
+    const success = await updateCustomField(fieldKey, newValue);
     
     if (success) {
         debugSuccess('Profile updated successfully!');
-        console.log('Basis Points Module: Profile updated successfully');
+        console.log('Profile Field Sync: Profile updated successfully');
     } else {
         debugError('Profile update failed');
-        console.error('Basis Points Module: Profile update failed');
+        console.error('Profile Field Sync: Profile update failed');
     }
     
     return success;
@@ -193,8 +275,8 @@ function showLoadingState() {
             <div class="mb-4">
                 <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
             </div>
-            <h3 class="text-xl font-semibold text-gray-800 mb-2">Submitting BASIS Points</h3>
-            <p class="text-gray-600">Please wait while we process your submission...</p>
+            <h3 class="text-xl font-semibold text-gray-800 mb-2">${(cfg && cfg.ui && cfg.ui.loadingTitle) ? cfg.ui.loadingTitle : 'Submitting'}</h3>
+            <p class="text-gray-600">${(cfg && cfg.ui && cfg.ui.loadingBody) ? cfg.ui.loadingBody : 'Please wait while we process your submission...'}</p>
         </div>
     `;
     
@@ -218,7 +300,7 @@ function showSuccessState() {
                 </div>
             </div>
             <h3 class="text-2xl font-bold text-green-600 mb-3">Success!</h3>
-            <p class="text-lg text-gray-800 mb-2">Thank you for submitting your BASIS points.</p>
+            <p class="text-lg text-gray-800 mb-2">Thank you for your submission.</p>
             <p class="text-gray-600">Your details have been successfully submitted to our database.</p>
         </div>
     `;
@@ -243,7 +325,7 @@ function setupMessageListener() {
     window.addEventListener('message', (event) => {
         if (event.data && event.data.type) {
             debugLog(`Received message: ${event.data.type}`);
-            console.log('Basis Points Module: Received message:', event.data);
+            console.log('Profile Field Sync: Received message:', event.data);
             
             if (event.data.type === 'BASIS_FORM_SUBMITTING') {
                 // Form is being submitted, show loading state
@@ -257,19 +339,19 @@ function setupMessageListener() {
     
     messageListenerSetup = true;
     debugLog('Message listener setup complete');
-    console.log('Basis Points Module: Listening for iframe messages');
+    console.log('Profile Field Sync: Listening for iframe messages');
 }
 
 /**
- * Save BASIS ID to profile and load iframe
- * @param {string} basisId - BASIS member ID to save
+ * Save configured field to profile and load iframe
+ * @param {string} fieldValue - field value to save
  * @param {string} firstName - First name for submission
  * @param {string} lastName - Last name for submission
  * @param {HTMLElement} submitBtn - Optional submit button to show loading state
  */
-async function saveBasisIdAndSubmit(basisId, firstName, lastName, submitBtn = null) {
-    debugSuccess(`Submitting - First: ${firstName}, Last: ${lastName}, BASIS: ${basisId}`);
-    console.log('Basis Points Module: Processing submission');
+async function saveFieldAndSubmit(fieldValue, firstName, lastName, submitBtn = null) {
+    debugSuccess(`Submitting - First: ${firstName}, Last: ${lastName}`);
+    console.log('Profile Field Sync: Processing submission');
     
     // Show button loading state
     if (submitBtn) {
@@ -277,28 +359,30 @@ async function saveBasisIdAndSubmit(basisId, firstName, lastName, submitBtn = nu
         submitBtn.textContent = 'Saving...';
     }
     
-    // Save ONLY BASIS ID to profile (not name)
-    debugLog('Saving BASIS ID to profile (name not saved)...');
-    const updateSuccess = await updateProfileBasisId(basisId);
+    const fieldLabel = (cfg && cfg.profile && cfg.profile.label) ? cfg.profile.label : 'field';
+    debugLog(`Saving ${fieldLabel} to profile (name not saved)...`);
+    const updateSuccess = await updateProfileField(fieldValue);
     
     if (updateSuccess) {
-        debugSuccess('BASIS ID saved to profile!');
+        debugSuccess(`${fieldLabel} saved to profile!`);
     } else {
         debugWarn('Could not save to profile, but continuing with submission');
     }
     
     // Load iframe with data
     const userData = getUserData();
-    createHiddenIframe(userData.email, firstName, lastName, basisId);
+    const customFields = await getProfileCustomFields();
+    createHiddenIframe(userData, fieldValue, customFields);
 }
 
 /**
- * Load iframe with BASIS form using data from user profile
- * @param {string} basisId - The BASIS member ID
+ * Load iframe using data from user profile
+ * @param {string} fieldValue - The field value
  */
-function loadBasisIframe(basisId) {
+async function loadIframe(fieldValue) {
     const userData = getUserData();
-    createHiddenIframe(userData.email, userData.firstName, userData.lastName, basisId);
+    const customFields = await getProfileCustomFields();
+    createHiddenIframe(userData, fieldValue, customFields);
 }
 
 /**
@@ -309,7 +393,7 @@ function showNotLoggedInMessage() {
     if (!wrapper) return;
     
     debugWarn('User not logged in');
-    console.log('Basis Points Module: Showing not logged in message');
+    console.log('Profile Field Sync: Showing not logged in message');
     
     wrapper.innerHTML = `
         <div class="bg-white rounded-lg shadow-md p-8 text-center max-w-md mx-auto">
@@ -321,8 +405,8 @@ function showNotLoggedInMessage() {
                 </div>
             </div>
             <h3 class="text-2xl font-bold text-gray-800 mb-3">Please Log In</h3>
-            <p class="text-lg text-gray-700 mb-4">You need to be logged in to claim your BASIS CPD points.</p>
-            <p class="text-sm text-gray-600 mb-6">Sign in to your Staypost account to continue.</p>
+            <p class="text-lg text-gray-700 mb-4">You need to be logged in to continue.</p>
+            <p class="text-sm text-gray-600 mb-6">Sign in to your Circle account to continue.</p>
             <a 
                 href="/users/sign_in" 
                 style="background-color: black"
@@ -335,36 +419,37 @@ function showNotLoggedInMessage() {
 }
 
 /**
- * Show simple BASIS ID form (when user has first/last name)
- * @param {string} existingBasisId - Existing BASIS ID if found
+ * Show simple field form (when user has first/last name)
+ * @param {string} existingValue - Existing field value if found
  */
-function showBasisIdOnlyForm(existingBasisId = '') {
+function showFieldOnlyForm(existingValue = '') {
     const wrapper = getWrapper();
     if (!wrapper) return;
     
-    debugWarn('Showing BASIS ID form (user has name)');
-    console.log('Basis Points Module: Showing BASIS ID only form');
+    const fieldLabel = (cfg && cfg.profile && cfg.profile.label) ? cfg.profile.label : 'ID';
+    debugWarn(`Showing ${fieldLabel} form (user has name)`);
+    console.log('Profile Field Sync: Showing field-only form');
     
     const formHtml = `
         <div class="bg-white rounded-lg p-6 max-w-md mx-auto">
             <div class="mb-6">
-                <h3 class="text-xl font-semibold text-gray-800 mb-2">Enter Your BASIS Member ID</h3>
-                <p class="text-sm text-gray-600">Please enter your BASIS member ID below to claim your CPD points.</p>
+                <h3 class="text-xl font-semibold text-gray-800 mb-2">Enter Your ${fieldLabel}</h3>
+                <p class="text-sm text-gray-600">Please enter your ${fieldLabel} below to continue.</p>
             </div>
             
-            <form id="basisSimpleForm" class="space-y-4">
+            <form id="circleFieldSimpleForm" class="space-y-4">
                 <div>
-                    <label for="basisIdInput" class="block text-sm font-medium text-gray-700 mb-1">
-                        BASIS Member ID <span class="text-red-500">*</span>
+                    <label for="circleFieldInput" class="block text-sm font-medium text-gray-700 mb-1">
+                        ${fieldLabel} <span class="text-red-500">*</span>
                     </label>
                     <input 
                         type="text" 
-                        id="basisIdInput" 
-                        name="basisId" 
+                        id="circleFieldInput" 
+                        name="circleField" 
                         required
-                        value="${existingBasisId}"
+                        value="${existingValue}"
                         class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                        placeholder="Enter your BASIS ID"
+                        placeholder="Enter your ID"
                     />
                 </div>
                 
@@ -373,13 +458,13 @@ function showBasisIdOnlyForm(existingBasisId = '') {
                     style="background-color: black" 
                     class="w-full text-white font-medium py-2 px-4 rounded-md transition duration-200 ease-in-out transform focus:outline-none focus:ring-2 focus:ring-offset-2"
                 >
-                    Submit to Claim Points
+                    Submit
                 </button>
             </form>
             
             <div class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
                 <p class="text-xs text-blue-800">
-                    💡 <strong>Tip:</strong> Your BASIS member ID will be saved to your profile for future auto-fill.
+                    💡 <strong>Tip:</strong> This value will be saved to your profile for future auto-fill.
                 </p>
             </div>
         </div>
@@ -388,19 +473,19 @@ function showBasisIdOnlyForm(existingBasisId = '') {
     wrapper.innerHTML = formHtml;
     
     // Add form submit handler
-    const form = document.getElementById('basisSimpleForm');
+    const form = document.getElementById('circleFieldSimpleForm');
     if (form) {
         setupMessageListener();
         
         form.addEventListener('submit', async function(e) {
             e.preventDefault();
             
-            const basisId = document.getElementById('basisIdInput').value.trim();
+            const fieldValue = document.getElementById('circleFieldInput').value.trim();
             const submitBtn = form.querySelector('button[type="submit"]');
             
-            if (!basisId) {
-                debugWarn('BASIS ID is required');
-                alert('Please enter your BASIS member ID');
+            if (!fieldValue) {
+                debugWarn(`${fieldLabel} is required`);
+                alert(`Please enter your ${fieldLabel}`);
                 return;
             }
             
@@ -408,30 +493,31 @@ function showBasisIdOnlyForm(existingBasisId = '') {
             const userData = getUserData();
             
             // Save and submit
-            await saveBasisIdAndSubmit(basisId, userData.firstName, userData.lastName, submitBtn);
+            await saveFieldAndSubmit(fieldValue, userData.firstName, userData.lastName, submitBtn);
         });
     }
 }
 
 /**
- * Show complete form when user data is missing (first/last name or BASIS ID)
- * @param {string} existingBasisId - Existing BASIS ID if found
+ * Show complete form when user data is missing (first/last name or field value)
+ * @param {string} existingValue - Existing field value if found
  * @param {string} existingFirstName - Existing first name if found
  * @param {string} existingLastName - Existing last name if found
  */
-function showCompleteDataForm(existingBasisId = '', existingFirstName = '', existingLastName = '') {
+function showCompleteDataForm(existingValue = '', existingFirstName = '', existingLastName = '') {
     const wrapper = getWrapper();
     if (!wrapper) return;
     
-    debugWarn('Showing complete data form (missing first/last name AND/OR BASIS ID)');
-    console.log('Basis Points Module: Showing complete data form');
+    const fieldLabel = (cfg && cfg.profile && cfg.profile.label) ? cfg.profile.label : 'ID';
+    debugWarn(`Showing complete data form (missing first/last name and/or ${fieldLabel})`);
+    console.log('Profile Field Sync: Showing complete data form');
     
     // Create form HTML with Tailwind classes
     const formHtml = `
         <div class="bg-white rounded-lg p-6 max-w-md mx-auto">
             <div class="mb-6">
                 <h3 class="text-xl font-semibold text-gray-800 mb-2">Complete Your Details</h3>
-                <p class="text-sm text-gray-600">Please provide the following information to claim your BASIS CPD points.</p>
+                <p class="text-sm text-gray-600">Please provide the following information to continue.</p>
             </div>
             
             <form id="basisCompleteForm" class="space-y-4">
@@ -466,17 +552,17 @@ function showCompleteDataForm(existingBasisId = '', existingFirstName = '', exis
                 </div>
                 
                 <div>
-                    <label for="basisIdInput" class="block text-sm font-medium text-gray-700 mb-1">
-                        BASIS Member ID <span class="text-red-500">*</span>
+                    <label for="circleFieldInputComplete" class="block text-sm font-medium text-gray-700 mb-1">
+                        ${fieldLabel} <span class="text-red-500">*</span>
                     </label>
                     <input 
                         type="text" 
-                        id="basisIdInput" 
-                        name="basisId" 
+                        id="circleFieldInputComplete" 
+                        name="circleField" 
                         required
-                        value="${existingBasisId}"
+                        value="${existingValue}"
                         class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                        placeholder="Enter your BASIS ID"
+                        placeholder="Enter your ID"
                     />
                 </div>
                 
@@ -485,13 +571,13 @@ function showCompleteDataForm(existingBasisId = '', existingFirstName = '', exis
                     style="background-color: black" 
                     class="w-full text-white font-medium py-2 px-4 rounded-md transition duration-200 ease-in-out transform focus:outline-none focus:ring-2 focus:ring-offset-2"
                 >
-                    Submit to Claim Points
+                    Submit
                 </button>
             </form>
             
             <div class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
                 <p class="text-xs text-blue-800">
-                    💡 <strong>Note:</strong> Only your BASIS member ID will be saved to your profile for future auto-fill. Your name is used only for this submission.
+                    💡 <strong>Note:</strong> Only your ${fieldLabel} will be saved to your profile for future auto-fill. Your name is used only for this submission.
                 </p>
             </div>
         </div>
@@ -510,17 +596,17 @@ function showCompleteDataForm(existingBasisId = '', existingFirstName = '', exis
             
             const firstName = document.getElementById('firstNameInput').value.trim();
             const lastName = document.getElementById('lastNameInput').value.trim();
-            const basisId = document.getElementById('basisIdInput').value.trim();
+            const fieldValue = document.getElementById('circleFieldInputComplete').value.trim();
             const submitBtn = form.querySelector('button[type="submit"]');
             
-            if (!firstName || !lastName || !basisId) {
+            if (!firstName || !lastName || !fieldValue) {
                 debugWarn('All fields are required');
                 alert('Please fill in all required fields');
                 return;
             }
             
             // Save and submit using helper function
-            await saveBasisIdAndSubmit(basisId, firstName, lastName, submitBtn);
+            await saveFieldAndSubmit(fieldValue, firstName, lastName, submitBtn);
         });
     }
 }
@@ -531,14 +617,15 @@ function showCompleteDataForm(existingBasisId = '', existingFirstName = '', exis
  */
 function waitForWrapper() {
     return new Promise((resolve, reject) => {
-        debugLog('Waiting for basisFormWrapper to be ready...');
-        console.log('Basis Points Module: Waiting for basisFormWrapper...');
+        const wrapperId = (cfg && cfg.dom && cfg.dom.wrapperId) ? cfg.dom.wrapperId : 'basisFormWrapper';
+        debugLog(`Waiting for ${wrapperId} to be ready...`);
+        console.log('Profile Field Sync: Waiting for wrapper...', wrapperId);
         
         // First, check if it's already there
-        const existingWrapper = document.getElementById('basisFormWrapper');
+        const existingWrapper = document.getElementById(wrapperId);
         if (existingWrapper) {
-            debugSuccess('basisFormWrapper found immediately');
-            console.log('Basis Points Module: basisFormWrapper found immediately');
+            debugSuccess(`${wrapperId} found immediately`);
+            console.log('Profile Field Sync: wrapper found immediately');
             resolve(existingWrapper);
             return;
         }
@@ -549,33 +636,35 @@ function waitForWrapper() {
         
         const checkInterval = setInterval(() => {
             attempts++;
-            const wrapper = document.getElementById('basisFormWrapper');
+            const wrapper = document.getElementById(wrapperId);
             
             if (wrapper) {
                 clearInterval(checkInterval);
-                debugSuccess(`basisFormWrapper found after ${attempts * 100}ms`);
-                console.log(`Basis Points Module: basisFormWrapper found after ${attempts * 100}ms`);
+                debugSuccess(`${wrapperId} found after ${attempts * 100}ms`);
+                console.log(`Profile Field Sync: wrapper found after ${attempts * 100}ms`);
                 resolve(wrapper);
             } else if (attempts >= maxAttempts) {
                 clearInterval(checkInterval);
-                debugError('basisFormWrapper not found after 5 seconds');
-                console.error('Basis Points Module: basisFormWrapper not found after timeout');
-                reject(new Error('basisFormWrapper div not found'));
+                debugError(`${wrapperId} not found after timeout`);
+                console.error('Profile Field Sync: wrapper not found after timeout');
+                reject(new Error(`${wrapperId} div not found`));
             }
         }, 300); // Check every 100ms
     });
 }
 
 /**
- * Initialize basis points submission functionality
- * Assumes we're already on the submit-basis-points page (routing handled by page-scripts.js)
+ * Initialize profile field sync functionality.
+ * Assumes routing is handled by page-scripts.js (and/or cfg.match).
  */
-export async function initBasisPoints() {
-    // Initialize debug logger (only for BASIS points page)
+export async function initUpdateProfileFields() {
+    // Initialize debug logger (only for this page)
     // initDebugLogger();
     
-    debugLog('Basis Points Module: Initializing...');
-    console.log('Basis Points Module: Initializing...');
+    if (!shouldRun()) return;
+
+    debugLog('Profile Field Sync: Initializing...');
+    console.log('Profile Field Sync: Initializing...');
     
     try {
         // Wait for React to render the wrapper div
@@ -585,13 +674,13 @@ export async function initBasisPoints() {
         const publicUid = getCurrentUserPublicUid();
         if (!publicUid) {
             debugWarn('User not logged in - showing login prompt');
-            console.log('Basis Points Module: User not logged in');
+            console.log('Profile Field Sync: User not logged in');
             showNotLoggedInMessage();
             return;
         }
         
-        // Fetch the BASIS ID from profile
-        const basisId = await getBasisId() || '';
+        // Fetch the configured field value from profile
+        const fieldValue = await getFieldValue() || '';
         
         // Get user data
         const userData = getUserData();
@@ -599,40 +688,44 @@ export async function initBasisPoints() {
         // Check what data we have
         const hasFirstName = !!userData.firstName;
         const hasLastName = !!userData.lastName;
-        const hasBasisId = !!basisId;
-        const hasAllData = hasBasisId && hasFirstName && hasLastName;
+        const hasFieldValue = !!fieldValue;
+        const hasAllData = hasFieldValue && hasFirstName && hasLastName;
         const hasNames = hasFirstName && hasLastName;
         
         if (hasAllData) {
             // All data available - auto-submit
             debugSuccess(`All data found - auto-submitting`);
-            console.log('Basis Points Module: All required data found, auto-submitting');
-            loadBasisIframe(basisId);
+            console.log('Profile Field Sync: All required data found, auto-submitting');
+            await loadIframe(fieldValue);
             
-        } else if (hasNames && !hasBasisId) {
-            // Has first/last name, only missing BASIS ID - show simple form
-            debugWarn('Missing: BASIS ID only');
-            console.log('Basis Points Module: Missing BASIS ID only, showing simple form');
-            showBasisIdOnlyForm(basisId);
+        } else if (hasNames && !hasFieldValue) {
+            // Has first/last name, only missing field value - show simple form
+            const fieldLabel = (cfg && cfg.profile && cfg.profile.label) ? cfg.profile.label : 'ID';
+            debugWarn(`Missing: ${fieldLabel} only`);
+            console.log('Profile Field Sync: Missing field only, showing simple form');
+            showFieldOnlyForm(fieldValue);
             
         } else {
-            // Missing first/last name (and maybe BASIS ID) - show complete form
+            // Missing first/last name (and maybe field) - show complete form
             const missingData = [];
             if (!hasFirstName) missingData.push('first name');
             if (!hasLastName) missingData.push('last name');
-            if (!hasBasisId) missingData.push('BASIS ID');
+            if (!hasFieldValue) {
+                const fieldLabel = (cfg && cfg.profile && cfg.profile.label) ? cfg.profile.label : 'field';
+                missingData.push(fieldLabel);
+            }
             
             debugWarn(`Missing: ${missingData.join(', ')}`);
-            console.log('Basis Points Module: Missing name data, showing complete form');
-            showCompleteDataForm(basisId, userData.firstName, userData.lastName);
+            console.log('Profile Field Sync: Missing data, showing complete form');
+            showCompleteDataForm(fieldValue, userData.firstName, userData.lastName);
         }
         
         debugLog('Initialization complete');
-        console.log('Basis Points Module: Initialization complete');
+        console.log('Profile Field Sync: Initialization complete');
         
     } catch (error) {
         debugError(`Initialization failed: ${error.message}`);
-        console.error('Basis Points Module: Initialization failed:', error);
+        console.error('Profile Field Sync: Initialization failed:', error);
     }
 }
 

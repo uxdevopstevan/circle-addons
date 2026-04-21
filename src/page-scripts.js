@@ -6,7 +6,7 @@
  */
 
 import { initSignUp } from './signup.js';
-import { initBasisPoints } from './basis-points.js';
+import { initUpdateProfileFields } from './update-profile-fields.js';
 import { initCheckout } from './checkout.js';
 import { initCheckoutPromos } from './checkout-promos.js';
 // import { initDynamicEvents } from './events.js';
@@ -30,7 +30,7 @@ export function initPageScripts() {
     // Basis points submission page
     if (url.includes('submit-basis-points')) {
         console.log('Page Scripts: Submit basis points page detected, initializing basis points module...');
-        initBasisPoints();
+        initUpdateProfileFields();
     }
     
     // General Checkout page (runs on all checkout pages including women-in-ag)

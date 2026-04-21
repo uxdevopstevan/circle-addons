@@ -77,6 +77,18 @@ const signupBrandingConfigPlugin = {
   }
 };
 
+const profileFieldSyncConfigPlugin = {
+  name: 'profile-field-sync-config',
+  setup(build) {
+    build.onResolve({ filter: /^@circle-config\/profile-field-sync$/ }, () => {
+      const privatePath = path.join(__dirname, 'config', 'profile-field-sync.private.json');
+      const publicPath = path.join(__dirname, 'config', 'profile-field-sync.public.json');
+      const chosen = fs.existsSync(privatePath) ? privatePath : publicPath;
+      return { path: chosen };
+    });
+  }
+};
+
 /**
  * Plugin to minify HTML/CSS in template literals
  */
@@ -163,7 +175,7 @@ const commonOptions = {
   platform: 'browser',
   format: 'iife',
   globalName: 'CircleAddons',
-  plugins: [checkoutPromosConfigPlugin, signupBrandingConfigPlugin],
+  plugins: [checkoutPromosConfigPlugin, signupBrandingConfigPlugin, profileFieldSyncConfigPlugin],
   define: {
     __WEB_ORIGIN__: JSON.stringify(WEB_ORIGIN)
     ,__CIRCLE_BASIS_POINTS_BASE_URL__: JSON.stringify(CIRCLE_BASIS_POINTS_BASE_URL)
@@ -231,7 +243,7 @@ async function build() {
       define: {
         __CIRCLE_ADDONS_SCRIPTS_BASE_URL__: JSON.stringify(CIRCLE_ADDONS_SCRIPTS_BASE_URL)
       },
-      plugins: [checkoutPromosConfigPlugin, signupBrandingConfigPlugin],
+      plugins: [checkoutPromosConfigPlugin, signupBrandingConfigPlugin, profileFieldSyncConfigPlugin],
       logLevel: 'silent'
     });
     
