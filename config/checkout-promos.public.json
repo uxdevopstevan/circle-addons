@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "promos": [
+    {
+      "id": "example-under-25",
+      "enabled": false,
+      "match": {
+        "pathIncludes": "/checkout/example"
+      },
+      "ui": {
+        "containerId": "circle-promo-question",
+        "questionText": "Are you eligible for a discount?",
+        "yesText": "Yes",
+        "noText": "No",
+        "defaultAnswer": "no"
+      },
+      "coupon": {
+        "code": "EXAMPLE10"
+      }
+    }
+  ]
+}

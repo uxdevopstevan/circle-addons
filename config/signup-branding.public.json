@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "groups": {
+    "example_group": {
+      "heading": "Join on Circle",
+      "logo": {
+        "path": "example-logo.png",
+        "alt": "Example"
+      }
+    }
+  }
+}
+

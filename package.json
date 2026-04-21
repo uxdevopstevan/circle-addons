@@ -1,0 +1,19 @@
+{
+  "name": "circle-addons",
+  "version": "2.0.1",
+  "description": "Circle addons for Circle.so platform",
+  "scripts": {
+    "build": "node build.js",
+    "build:dev": "node build.js --dev",
+    "build:prod": "node build.js --prod"
+  },
+  "keywords": ["circle", "circle.so", "web-components"],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "dotenv": "^17.2.1",
+    "esbuild": "^0.19.0",
+    "html-minifier-terser": "^7.2.0"
+  }
+}
+

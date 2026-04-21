@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build artifacts (keep dist/ in version control for easy deployment)
+*.log
+dist/
+
+# Editor files
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+tmp/
+temp/
+
+# Other files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Private config (not for public repo)
+config/*.private.json
