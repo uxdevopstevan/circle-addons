@@ -204,7 +204,6 @@ function createHiddenIframe(setup, category, userData, fieldValue, customFields)
     const firstName = (userData && userData.firstName) ? String(userData.firstName) : '';
     const lastName = (userData && userData.lastName) ? String(userData.lastName) : '';
     const displayName = (firstName || lastName) ? `${firstName} ${lastName}`.trim() : '(no name)';
-    debugSuccess(category || 'Profile Field Sync', `Loading iframe - ${displayName}`);
     debugLog(category || 'Profile Field Sync', `Loading iframe with URL: ${iframeUrl}`);
     
     // Show loading state
@@ -251,8 +250,7 @@ async function getFieldValue(setup, category) {
     
     if (value) {
         const label = (setup && setup.profile && setup.profile.label) ? setup.profile.label : fieldKey || 'field';
-        debugSuccess(category || 'Profile Field Sync', `${label} found: ${value}`);
-        debugLog(category || 'Profile Field Sync', `Field value: ${String(value)}`);
+        debugLog(category || 'Profile Field Sync', `${label} found: ${value}`);
     }
     
     return value;
@@ -285,7 +283,6 @@ async function updateProfileField(setup, category, newValue) {
     
     if (success) {
         debugSuccess(category || 'Profile Field Sync', 'Profile updated successfully!');
-        debugLog(category || 'Profile Field Sync', 'Profile updated successfully');
     } else {
         debugError(category || 'Profile Field Sync', 'Profile update failed');
         debugError(category || 'Profile Field Sync', 'Profile update failed');
@@ -385,8 +382,7 @@ function setupMessageListener(setup, category) {
  * @param {HTMLElement} submitBtn - Optional submit button to show loading state
  */
 async function saveFieldAndSubmit(setup, category, fieldValue, firstName, lastName, submitBtn = null) {
-    debugSuccess(category || 'Profile Field Sync', `Submitting - First: ${firstName}, Last: ${lastName}`);
-    debugLog(category || 'Profile Field Sync', 'Processing submission');
+    debugLog(category || 'Profile Field Sync', `Submitting - First: ${firstName}, Last: ${lastName}`);
     
     // Show button loading state
     if (submitBtn) {
@@ -423,12 +419,11 @@ async function loadIframe(setup, category, fieldValue) {
 /**
  * Show not logged in message
  */
-function showNotLoggedInMessage() {
-    const wrapper = getWrapper();
+function showNotLoggedInMessage(setup, category) {
+    const wrapper = getWrapper(setup, category);
     if (!wrapper) return;
     
-    debugWarn('Profile Field Sync', 'User not logged in');
-    debugLog('Profile Field Sync', 'Showing not logged in message');
+    debugWarn(category || 'Profile Field Sync', 'User not logged in');
     
     wrapper.innerHTML = `
         <div class="bg-white rounded-lg shadow-md p-8 text-center max-w-md mx-auto">
@@ -462,8 +457,7 @@ function showFieldOnlyForm(setup, category, existingValue = '') {
     if (!wrapper) return;
     
     const fieldLabel = (setup && setup.profile && setup.profile.label) ? setup.profile.label : 'ID';
-    debugWarn(category || 'Profile Field Sync', `Showing ${fieldLabel} form (user has name)`);
-    debugLog(category || 'Profile Field Sync', 'Showing field-only form');
+    debugLog(category || 'Profile Field Sync', `Showing ${fieldLabel} form (user has name)`);
     
     const formHtml = `
         <div class="bg-white rounded-lg p-6 max-w-md mx-auto">
@@ -544,8 +538,7 @@ function showCompleteDataForm(setup, category, existingValue = '', existingFirst
     if (!wrapper) return;
     
     const fieldLabel = (setup && setup.profile && setup.profile.label) ? setup.profile.label : 'ID';
-    debugWarn(category || 'Profile Field Sync', `Showing complete data form (missing first/last name and/or ${fieldLabel})`);
-    debugLog(category || 'Profile Field Sync', 'Showing complete data form');
+    debugLog(category || 'Profile Field Sync', `Showing complete data form (missing first/last name and/or ${fieldLabel})`);
     
     // Create form HTML with Tailwind classes
     const formHtml = `
@@ -659,8 +652,7 @@ function waitForWrapper(setup, category) {
         // First, check if it's already there
         const existingWrapper = document.getElementById(wrapperId);
         if (existingWrapper) {
-            debugSuccess(category || 'Profile Field Sync', `${wrapperId} found immediately`);
-            debugLog(category || 'Profile Field Sync', 'wrapper found immediately');
+            debugLog(category || 'Profile Field Sync', `${wrapperId} found immediately`);
             resolve(existingWrapper);
             return;
         }
@@ -675,8 +667,7 @@ function waitForWrapper(setup, category) {
             
             if (wrapper) {
                 clearInterval(checkInterval);
-                debugSuccess(category || 'Profile Field Sync', `${wrapperId} found after ${attempts * 100}ms`);
-                debugLog(category || 'Profile Field Sync', `wrapper found after ${attempts * 100}ms`);
+                debugLog(category || 'Profile Field Sync', `${wrapperId} found after ${attempts * 100}ms`);
                 resolve(wrapper);
             } else if (attempts >= maxAttempts) {
                 clearInterval(checkInterval);
