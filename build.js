@@ -52,6 +52,44 @@ const CIRCLE_ADDONS_SCRIPTS_BASE_URL = pickString('addonsScriptsBaseUrl', proces
 const CIRCLE_ADDONS_IMAGES_BASE_URL = pickString('addonsImagesBaseUrl', process.env.CIRCLE_ADDONS_IMAGES_BASE_URL, buildCfg.addonsImagesBaseUrl);
 const CIRCLE_BLUECONIC_DOMAIN_KEY = pickString('blueconicDomainKey', process.env.CIRCLE_BLUECONIC_DOMAIN_KEY, buildCfg.blueconicDomainKey);
 
+function pickBoolean(envValue, cfgValue, defaultValue = false) {
+  if (typeof envValue === 'boolean') return envValue;
+  if (typeof envValue === 'string') {
+    const v = envValue.trim().toLowerCase();
+    if (v === '1' || v === 'true') return true;
+    if (v === '0' || v === 'false') return false;
+  }
+  if (typeof cfgValue === 'boolean') return cfgValue;
+  return defaultValue;
+}
+
+const ENABLE_BLUECONIC = pickBoolean(process.env.CIRCLE_ENABLE_BLUECONIC, buildCfg.enableBlueconic, false);
+
+const blueconicTogglePlugin = {
+  name: 'blueconic-toggle',
+  setup(build) {
+    if (ENABLE_BLUECONIC) return;
+    const ns = 'circle-feature-disabled';
+
+    build.onResolve({ filter: /^\.\/blueconic\.js$/ }, () => {
+      // When disabled, replace the module with an in-memory stub so the real
+      // implementation is not bundled.
+      return { path: 'circle:blueconic-disabled', namespace: ns };
+    });
+
+    build.onLoad({ filter: /.*/, namespace: ns }, () => {
+      return {
+        loader: 'js',
+        contents: [
+          'export function initBlueConic() {}',
+          'export function syncBlueConic() {}',
+          ''
+        ].join('\n')
+      };
+    });
+  }
+};
+
 const checkoutPromosConfigPlugin = {
   name: 'checkout-promos-config',
   setup(build) {
@@ -174,12 +212,13 @@ const commonOptions = {
   platform: 'browser',
   format: 'iife',
   globalName: 'CircleAddons',
-  plugins: [checkoutPromosConfigPlugin, signupBrandingConfigPlugin, profileFieldSyncConfigPlugin],
+  plugins: [blueconicTogglePlugin, checkoutPromosConfigPlugin, signupBrandingConfigPlugin, profileFieldSyncConfigPlugin],
   define: {
     __STAYPOST_WEB_ORIGIN__: JSON.stringify(WEB_ORIGIN)
     ,__CIRCLE_BLUECONIC_DOMAIN_KEY__: JSON.stringify(CIRCLE_BLUECONIC_DOMAIN_KEY)
     ,__CIRCLE_ADDONS_SCRIPTS_BASE_URL__: JSON.stringify(CIRCLE_ADDONS_SCRIPTS_BASE_URL)
     ,__CIRCLE_ADDONS_IMAGES_BASE_URL__: JSON.stringify(CIRCLE_ADDONS_IMAGES_BASE_URL)
+    ,__CIRCLE_ENABLE_BLUECONIC__: JSON.stringify(ENABLE_BLUECONIC)
   },
   banner: {
     js: `/**

@@ -29,8 +29,12 @@ function initAll() {
     
     // Initialize BlueConic integration (runs on all pages for logged-in users)
     try {
-        initBlueConic();
-        debugLog('Circle Addons: BlueConic integration initialized');
+        if (__CIRCLE_ENABLE_BLUECONIC__) {
+            initBlueConic();
+            debugLog('Circle Addons: BlueConic integration initialized');
+        } else {
+            debugLog('Circle Addons: BlueConic disabled (build-time)');
+        }
     } catch (error) {
         debugError(`Circle Addons: Error initializing BlueConic: ${String(error?.message || error)}`);
     }
