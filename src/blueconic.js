@@ -13,11 +13,11 @@ import { debugError, debugLog, debugWarn } from './debug-logger.js';
  * Called automatically on page load
  */
 export async function initBlueConic() {
-    debugLog('BlueConic Module: Initializing...');
+    debugLog('BlueConic', 'Initializing...');
     
     // Check if user is logged in
     if (!window.circleUser) {
-        debugLog('BlueConic Module: No user data found in window.circleUser');
+        debugLog('BlueConic', 'No user data found in window.circleUser');
         return;
     }
     
@@ -39,15 +39,15 @@ export async function initBlueConic() {
         const profileResponse = await getProfileData();
         
         // Console log for debugging - see what's in the profile
-        debugLog(`BlueConic Module: Profile Data: ${JSON.stringify(profileResponse)}`);
+        debugLog('BlueConic', `Profile Data: ${JSON.stringify(profileResponse)}`);
         
         if (profileResponse && profileResponse.customFields) {
-            debugLog(`BlueConic Module: Custom Fields: ${JSON.stringify(profileResponse.customFields)}`);
+            debugLog('BlueConic', `Custom Fields: ${JSON.stringify(profileResponse.customFields)}`);
             
             // Add custom fields from profile API
-            // Example: BASIS ID
-            // if (profileResponse.customFields.basis_id) {
-            //     blueConicUser[`${demographicKey}basis_id`] = profileResponse.customFields.basis_id;
+            // Example: Company Name
+            // if (profileResponse.customFields.company_name) {
+            //     blueConicUser[`${demographicKey}company_name`] = profileResponse.customFields.company_name;
             // }
             
             // Add other custom fields as needed
@@ -61,10 +61,10 @@ export async function initBlueConic() {
             // }
             
         } else {
-            debugLog('BlueConic Module: No custom fields found');
+            debugLog('BlueConic', 'No custom fields found');
         }
     } catch (error) {
-        debugWarn(`BlueConic Module: Could not fetch profile data: ${String(error?.message || error)}`);
+        debugWarn('BlueConic', `Could not fetch profile data: ${String(error?.message || error)}`);
     }
     
     // Try to fetch enhanced user data (subscription, roles, policies)
@@ -72,7 +72,7 @@ export async function initBlueConic() {
         const enhancedData = await getEnhancedUserData();
         
         // Console log for debugging - see what's in the enhanced data
-        debugLog(`BlueConic Module: Enhanced User Data: ${JSON.stringify(enhancedData)}`);
+        debugLog('BlueConic', `Enhanced User Data: ${JSON.stringify(enhancedData)}`);
         
         if (enhancedData) {
             // Add subscription status
@@ -95,16 +95,16 @@ export async function initBlueConic() {
             //     blueConicUser[`${demographicKey}visible_in_directory`] = String(enhancedData.preferences.visible_in_member_directory);
             // }
             
-            debugLog('BlueConic Module: Enhanced data added to sync');
+            debugLog('BlueConic', 'Enhanced data added to sync');
         } else {
-            debugLog('BlueConic Module: No enhanced data available');
+            debugLog('BlueConic', 'No enhanced data available');
         }
     } catch (error) {
-        debugWarn(`BlueConic Module: Could not fetch enhanced user data: ${String(error?.message || error)}`);
+        debugWarn('BlueConic', `Could not fetch enhanced user data: ${String(error?.message || error)}`);
     }
     
     // Console log final object being sent to BlueConic
-    debugLog(`BlueConic Module: Final data to sync: ${JSON.stringify(blueConicUser)}`);
+    debugLog('BlueConic', `Final data to sync: ${JSON.stringify(blueConicUser)}`);
     
     // Update BlueConic profile
     await updateBlueconicProfileFields(blueConicUser);
@@ -139,7 +139,7 @@ async function updateBlueconicProfileFields(blueConicUser) {
         var properties = Object.keys(blueConicUser);
         
         if (!profile) {
-            debugWarn('BlueConic Module: BlueConic profile not available');
+            debugWarn('BlueConic', 'BlueConic profile not available');
             return;
         }
         
@@ -159,11 +159,11 @@ async function updateBlueconicProfileFields(blueConicUser) {
                     }
                     
                     if (currentValue === newValue) {
-                        debugLog('BlueConic Module: profile[' + key + '] is already set to "' + newValue + '"');
+                        debugLog('BlueConic', 'profile[' + key + '] is already set to "' + newValue + '"');
                     } else {
                         profile.setValue(key, newValue);
                         hasChanges = true;
-                        debugLog('BlueConic Module: profile[' + key + '] updated from "' + currentValue + '" to "' + newValue + '"');
+                        debugLog('BlueConic', 'profile[' + key + '] updated from "' + currentValue + '" to "' + newValue + '"');
                     }
                 }
             }
@@ -171,14 +171,14 @@ async function updateBlueconicProfileFields(blueConicUser) {
             // Only update the profile once if there were any changes
             if (hasChanges) {
                 profileApi.updateProfile();
-                debugLog('BlueConic Module: Profile updated with all changes');
+                debugLog('BlueConic', 'Profile updated with all changes');
             } else {
-                debugLog('BlueConic Module: No changes detected, profile not updated');
+                debugLog('BlueConic', 'No changes detected, profile not updated');
             }
         });
         
     } catch (ex) {
-        debugError(`BlueConic Module: Error updating profile: ${String(ex?.message || ex)}`);
+        debugError('BlueConic', `Error updating profile: ${String(ex?.message || ex)}`);
     }
 }
 
@@ -187,7 +187,7 @@ async function updateBlueconicProfileFields(blueConicUser) {
  * Useful for debugging or triggering updates after profile changes
  */
 export function syncBlueConic() {
-    debugLog('BlueConic Module: Manual sync triggered');
+    debugLog('BlueConic', 'Manual sync triggered');
     initBlueConic();
 }
 

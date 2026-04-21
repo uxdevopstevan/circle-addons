@@ -15,12 +15,12 @@ import { debugLog, debugWarn } from './debug-logger.js';
  * Assumes we're already on the sign-up page (routing handled by page-scripts.js)
  */
 export function initSignUp() {
-    debugLog('SignUp Module: Initializing...');
+    debugLog('SignUp', 'Initializing...');
     
     const reactRoot = document.querySelector('#react-root');
 
     if (!reactRoot) {
-        debugWarn('SignUp Module: reactRoot not found');
+        debugWarn('SignUp', 'reactRoot not found');
         return;
     }
 
@@ -28,7 +28,7 @@ export function initSignUp() {
     const executeLogic = (stayPostLogo) => {
         const heading = reactRoot.querySelector('h1');
         if (!heading) {
-            debugWarn('SignUp Module: heading not found after logo was found.');
+            debugWarn('SignUp', 'heading not found after logo was found.');
             return;
         }
 
@@ -61,7 +61,7 @@ export function initSignUp() {
             
             if (stayPostLogo.parentNode) {
                 stayPostLogo.parentNode.insertBefore(newImage, stayPostLogo.nextSibling);
-                debugLog(`SignUp Module: New image added after logo for group: ${group || 'default'}`);
+                debugLog('SignUp', `New image added after logo for group: ${group || 'default'}`);
             }
         }
     };
@@ -71,7 +71,7 @@ export function initSignUp() {
     // First, check if the logo is already there
     const initialLogo = reactRoot.querySelector('img');
     if (initialLogo) {
-        debugLog('SignUp Module: Logo found immediately.');
+        debugLog('SignUp', 'Logo found immediately.');
         executeLogic(initialLogo);
         return;
     }
@@ -80,7 +80,7 @@ export function initSignUp() {
     const observer = new MutationObserver((mutations, obs) => {
         const stayPostLogo = reactRoot.querySelector('img');
         if (stayPostLogo) {
-            debugLog('SignUp Module: Logo found after a DOM mutation.');
+            debugLog('SignUp', 'Logo found after a DOM mutation.');
             executeLogic(stayPostLogo);
             obs.disconnect(); // Stop observing once we've found it
         }

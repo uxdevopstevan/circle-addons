@@ -1,45 +1,51 @@
 {
-  "version": 1,
+  "version": 2,
   "enabled": false,
-  "match": {
-    "pathIncludes": "/submit-profile-field"
-  },
-  "dom": {
-    "wrapperId": "basisFormWrapper"
-  },
-  "profile": {
-    "fieldKey": "example_field_key",
-    "label": "Example ID",
-    "additionalFieldKeys": ["company", "job_title"]
-  },
-  "submit": {
-    "method": "iframe_get",
-    "baseUrl": "https://example.com/submit",
-    "fields": [
-      { "name": "email", "from": "user.email" },
-      { "name": "firstName", "from": "user.firstName" },
-      { "name": "lastName", "from": "user.lastName" },
-      { "name": "value", "from": "fieldValue" },
-      { "name": "company", "from": "profile.company", "optional": true },
-      { "name": "jobTitle", "from": "profile.job_title", "optional": true },
+  "setups": [
+    {
+      "id": "example",
+      "enabled": true,
+      "match": {
+        "pathIncludes": "/submit-profile-field"
+      },
+      "dom": {
+        "wrapperId": "basisFormWrapper"
+      },
+      "profile": {
+        "fieldKey": "example_field_key",
+        "label": "Example ID",
+        "additionalFieldKeys": ["company", "job_title"]
+      },
+      "submit": {
+        "method": "iframe_get",
+        "baseUrl": "https://example.com/submit",
+        "fields": [
+          { "name": "email", "from": "user.email" },
+          { "name": "firstName", "from": "user.firstName" },
+          { "name": "lastName", "from": "user.lastName" },
+          { "name": "value", "from": "fieldValue" },
+          { "name": "company", "from": "profile.company", "optional": true },
+          { "name": "jobTitle", "from": "profile.job_title", "optional": true },
 
-      { "name": "utm_source", "from": "url.utm_source", "optional": true },
-      { "name": "utm_medium", "from": "url.utm_medium", "optional": true },
-      { "name": "utm_campaign", "from": "url.utm_campaign", "optional": true },
-      { "name": "course_name", "from": "url.course_name", "optional": true },
-      { "name": "registration_claim", "from": "url.registration_claim", "optional": true }
-    ],
-    "includeTimestampParam": true,
-    "timestampParamName": "_t"
-  },
-  "ui": {
-    "loadingTitle": "Submitting",
-    "loadingBody": "Please wait while we process your submission..."
-  },
-  "messages": {
-    "submittingType": "FORM_SUBMITTING",
-    "successType": "FORM_SUCCESS",
-    "successFlagKey": "success"
-  }
+          { "name": "utm_source", "from": "url.utm_source", "optional": true },
+          { "name": "utm_medium", "from": "url.utm_medium", "optional": true },
+          { "name": "utm_campaign", "from": "url.utm_campaign", "optional": true },
+          { "name": "course_name", "from": "url.course_name", "optional": true },
+          { "name": "registration_claim", "from": "url.registration_claim", "optional": true }
+        ],
+        "includeTimestampParam": true,
+        "timestampParamName": "_t"
+      },
+      "ui": {
+        "loadingTitle": "Submitting",
+        "loadingBody": "Please wait while we process your submission..."
+      },
+      "messages": {
+        "submittingType": "FORM_SUBMITTING",
+        "successType": "FORM_SUCCESS",
+        "successFlagKey": "success"
+      }
+    }
+  ]
 }
 

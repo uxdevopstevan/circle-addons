@@ -5,7 +5,7 @@
  * This module can be imported by any other module that needs profile data.
  */
 
-import { debugError, debugLog } from './debug-logger.js';
+import { debugError, debugLog, debugWarn } from './debug-logger.js';
 
 const STAYPOST_WEB_ORIGIN = __STAYPOST_WEB_ORIGIN__;
 
@@ -76,7 +76,7 @@ export async function getProfileData(publicUid = null) {
         
         const profileData = await response.json();
         
-        debugLog('Profile API: Successfully fetched profile data');
+        debugLog('Profile API', 'Successfully fetched profile data');
         
         // Return structured data for easy access
         return {
@@ -86,7 +86,7 @@ export async function getProfileData(publicUid = null) {
         };
 
     } catch (error) {
-        debugError(`Profile API: Could not fetch profile data: ${String(error?.message || error)}`);
+        debugError('Profile API', `Could not fetch profile data: ${String(error?.message || error)}`);
         return null;
     }
 }
@@ -111,7 +111,7 @@ export async function getEnhancedUserData() {
         
         const data = await response.json();
         
-        debugLog('Profile API: Successfully fetched enhanced user data');
+        debugLog('Profile API', 'Successfully fetched enhanced user data');
         
         // Return structured data with commonly used fields
         return {
@@ -137,7 +137,7 @@ export async function getEnhancedUserData() {
         };
 
     } catch (error) {
-        debugError(`Profile API: Could not fetch enhanced user data: ${String(error?.message || error)}`);
+        debugError('Profile API', `Could not fetch enhanced user data: ${String(error?.message || error)}`);
         return null;
     }
 }
@@ -174,7 +174,7 @@ function extractCustomFields(visibleFields) {
 
 /**
  * Get a specific custom field value by key
- * @param {string} fieldKey - The key of the field to retrieve (e.g., 'basis_id')
+ * @param {string} fieldKey - The key of the field to retrieve (e.g., 'email')
  * @param {string} [publicUid] - Optional publicUid, defaults to current user
  * @returns {Promise<string|null>} The field value or null
  */
@@ -203,16 +203,36 @@ export async function updateProfile(updates, publicUid = null) {
         return false;
     }
     
-    debugLog(`Profile API: Updating profile... ${JSON.stringify(updates)}`);
+    debugLog('Profile API', `Updating profile... ${JSON.stringify(updates)}`);
     
     // First, get the current profile data to preserve other fields
     const profileResponse = await getProfileData(uid);
     if (!profileResponse || !profileResponse.fullData) {
-        debugError('Profile API: Cannot update - failed to fetch current profile');
+        debugError('Profile API', 'Cannot update - failed to fetch current profile');
         return false;
     }
     
     const profileData = profileResponse.fullData;
+
+    const resolveProfileFieldValueProp = (field, memberField) => {
+        // Circle field types vary; prefer the shape we see on the current memberField.
+        if (memberField) {
+            if (Object.prototype.hasOwnProperty.call(memberField, 'text')) return 'text';
+            if (Object.prototype.hasOwnProperty.call(memberField, 'textarea')) return 'textarea';
+            if (Object.prototype.hasOwnProperty.call(memberField, 'payload')) return 'payload';
+        }
+
+        // Fallback mapping by field.type (best-effort)
+        const type = (field && field.type) ? String(field.type) : '';
+        const typeMap = {
+            text: 'text',
+            short_text: 'text',
+            textarea: 'textarea',
+            long_text: 'textarea',
+            payload: 'payload'
+        };
+        return typeMap[type] || null;
+    };
     
     // Build the update payload - must be wrapped in "community_member" key
     const payload = {
@@ -239,36 +259,43 @@ export async function updateProfile(updates, publicUid = null) {
             // Check if this field is being updated
             const fieldKey = field.key;
             if (updates.customFields && updates.customFields.hasOwnProperty(fieldKey)) {
-                // Update with new value
-                const typeMap = {
-                    text: 'text',
-                    textarea: 'textarea',
-                    payload: 'payload'
-                };
-                const fieldType = typeMap[field.type];
-                if (fieldType) {
-                    fieldData[fieldType] = updates.customFields[fieldKey];
+                const prop = resolveProfileFieldValueProp(field, memberField);
+                if (prop) {
+                    fieldData[prop] = updates.customFields[fieldKey];
+                } else {
+                    debugWarn('Profile API', `Skipping update for "${fieldKey}" (unknown field type "${String(field.type)}")`);
                 }
             } else {
                 // Keep existing value
-                const typeMap = {
-                    text: 'text',
-                    textarea: 'textarea',
-                    payload: 'payload'
-                };
-                const fieldType = typeMap[field.type];
-                if (fieldType) {
-                    fieldData[fieldType] = memberField?.[fieldType] || '';
+                const prop = resolveProfileFieldValueProp(field, memberField);
+                if (prop) {
+                    fieldData[prop] = memberField?.[prop] || '';
                 }
             }
             
             payload.community_member.community_member_profile_fields_attributes.push(fieldData);
         });
     }
+
+    // Log what we think we're updating (high-signal debugging)
+    try {
+        if (updates.customFields && profileData.profile_fields?.visible) {
+            for (const [key, nextValue] of Object.entries(updates.customFields)) {
+                const f = profileData.profile_fields.visible.find(v => v && v.key === key);
+                if (!f) {
+                    debugWarn('Profile API', `Custom field "${key}" not found in profile_fields.visible; cannot verify field type`);
+                    continue;
+                }
+                const mf = f.community_member_profile_field;
+                const prop = resolveProfileFieldValueProp(f, mf);
+                debugLog('Profile API', `Preparing update "${key}" (type="${String(f.type)}", prop="${String(prop)}") -> ${String(nextValue)}`);
+            }
+        }
+    } catch (e) {}
     
     const url = `${STAYPOST_WEB_ORIGIN}/internal_api/profiles/${uid}`;
     
-    debugLog('Profile API: Sending update request');
+    debugLog('Profile API', 'Sending update request');
     
     try {
         const response = await fetch(url, {
@@ -283,16 +310,43 @@ export async function updateProfile(updates, publicUid = null) {
         
         if (!response.ok) {
             const errorText = await response.text();
-            debugError(`Profile API: Update failed: ${String(response.status)} ${String(errorText)}`);
+            debugError('Profile API', `Update failed: ${String(response.status)} ${String(errorText)}`);
             return false;
         }
         
         const result = await response.json();
-        debugLog('Profile API: Profile updated successfully');
+        debugLog('Profile API', 'Profile updated successfully');
+
+        // Verify that updated custom fields actually changed (avoid false positives)
+        if (updates.customFields && Object.keys(updates.customFields).length > 0) {
+            try {
+                await new Promise(r => setTimeout(r, 200));
+                const after = await getProfileData(uid);
+                const afterFields = after && after.customFields ? after.customFields : {};
+
+                let allOk = true;
+                for (const [k, expected] of Object.entries(updates.customFields)) {
+                    const actual = Object.prototype.hasOwnProperty.call(afterFields, k) ? afterFields[k] : undefined;
+                    const expectedStr = expected == null ? '' : String(expected);
+                    const actualStr = actual == null ? '' : String(actual);
+                    if (expectedStr !== actualStr) {
+                        allOk = false;
+                        debugWarn('Profile API', `Verify failed for "${k}": expected "${expectedStr}", got "${actualStr}"`);
+                    } else {
+                        debugLog('Profile API', `Verify ok for "${k}": "${actualStr}"`);
+                    }
+                }
+
+                if (!allOk) return false;
+            } catch (e) {
+                debugWarn('Profile API', `Verification skipped/failed: ${String(e?.message || e)}`);
+            }
+        }
+
         return true;
         
     } catch (error) {
-        debugError(`Profile API: Update error: ${String(error?.message || error)}`);
+        debugError('Profile API', `Update error: ${String(error?.message || error)}`);
         return false;
     }
 }

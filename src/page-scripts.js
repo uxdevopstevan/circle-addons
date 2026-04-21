@@ -16,7 +16,7 @@ import { debugLog, debugWarn } from './debug-logger.js';
  * Initialize page-specific scripts based on current URL
  */
 export function initPageScripts() {
-    debugLog('Page Scripts: Checking current page...');
+    debugLog('Page Scripts', 'Checking current page...');
     
     const origin = window.location.origin;
     const path = window.location.pathname;
@@ -24,26 +24,27 @@ export function initPageScripts() {
     
     // Sign-up page
     if (url.includes(origin + '/sign_up')) {
-        debugLog('Page Scripts: Sign-up page detected, initializing sign-up module...');
+        debugLog('Page Scripts', 'Sign-up page detected, initializing sign-up module...');
         initSignUp();
     }
     
-    // Basis points submission page
-    if (url.includes('submit-basis-points')) {
-        debugLog('Page Scripts: Submit basis points page detected, initializing basis points module...');
+    // Profile field sync: module is config-driven and no-ops unless enabled + matched.
+    try {
         initUpdateProfileFields();
+    } catch (e) {
+        debugWarn('Page Scripts', `Profile field sync failed to initialize: ${String(e?.message || e)}`);
     }
     
     // General Checkout page (runs on all checkout pages including women-in-ag)
     if (path.includes('checkout')) {
-        debugLog('Page Scripts: Checkout page detected, initializing checkout module...');
+        debugLog('Page Scripts', 'Checkout page detected, initializing checkout module...');
         initCheckout();
 
         // Optional checkout promos (driven by config JSON)
         try {
             initCheckoutPromos();
         } catch (e) {
-            debugWarn(`Page Scripts: Checkout promos failed to initialize: ${String(e?.message || e)}`);
+            debugWarn('Page Scripts', `Checkout promos failed to initialize: ${String(e?.message || e)}`);
         }
     }
     
@@ -73,6 +74,6 @@ export function initPageScripts() {
     //     initDiscussionFeatures();
     // }
     
-    debugLog('Page Scripts: Routing complete');
+    debugLog('Page Scripts', 'Routing complete');
 }
 
