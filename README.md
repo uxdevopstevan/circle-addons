@@ -22,7 +22,6 @@ app/
 │   ├── update-profile-fields.js   # Profile field sync + optional iframe submit
 │   ├── checkout.js                # Checkout feature(s)
 │   ├── checkout-promos.js         # Checkout page coupon feature(s)
-│   ├── events.js                  # (Optional) page content updater for events pages
 │   ├── webcomponent.js            # <circle-widget> custom element
 │   ├── debug-logger.js            # Optional in-page debug overlay
 ├── config/                        # Public/private JSON configs (private is gitignored)
